@@ -20,22 +20,9 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
-        android:id="@+id/label_signal"
-        android:layout_width="113dp"
-        android:layout_height="30dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="112dp"
-        android:text="@string/label_signal"
-        android:textSize="20dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.024"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btn_campiona_mic" />
-
-    <TextView
-        android:id="@+id/tv_microphone_value"
-        android:layout_width="300dp"
-        android:layout_height="35dp"
+        android:id="@+id/tv_out"
+        android:layout_width="293dp"
+        android:layout_height="265dp"
         android:layout_marginStart="8dp"
         android:layout_marginTop="76dp"
         android:textSize="20dp"
@@ -49,44 +36,57 @@
         android:layout_width="125dp"
         android:layout_height="62dp"
         android:layout_marginStart="8dp"
-        android:layout_marginTop="88dp"
+        android:layout_marginTop="308dp"
         android:text="Rec"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/label_microphone" />
-
-    <Button
-        android:id="@+id/btn_sample_signal"
-        android:layout_width="193dp"
-        android:layout_height="54dp"
-        android:layout_marginTop="20dp"
-        android:text="Sample signal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.052"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/label_signal" />
-
-    <Button
-        android:id="@+id/btn_stop_mic"
-        android:layout_width="124dp"
-        android:layout_height="63dp"
-        android:layout_marginStart="36dp"
-        android:layout_marginTop="132dp"
-        android:text="Stop"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
-        app:layout_constraintStart_toEndOf="@+id/btn_campiona_mic"
-        app:layout_constraintTop_toTopOf="parent" />
 
     <EditText
         android:id="@+id/tx_millis"
         android:layout_width="210dp"
         android:layout_height="51dp"
-        android:layout_marginTop="28dp"
+        android:layout_marginTop="40dp"
         android:ems="10"
         android:inputType="number"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.412"
+        app:layout_constraintHorizontal_bias="0.462"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btn_stop_mic" />
+        app:layout_constraintTop_toBottomOf="@+id/wifi" />
+
+    <Button
+        android:id="@+id/wifi"
+        android:layout_width="124dp"
+        android:layout_height="63dp"
+        android:layout_marginStart="36dp"
+        android:layout_marginTop="352dp"
+        android:text="Wifi"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.084"
+        app:layout_constraintStart_toEndOf="@+id/btn_campiona_mic"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/btn_sample_signal"
+        android:layout_width="193dp"
+        android:layout_height="54dp"
+        android:layout_marginTop="8dp"
+        android:text="Sample signal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.096"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/label_signal" />
+
+    <TextView
+        android:id="@+id/label_signal"
+        android:layout_width="113dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="124dp"
+        android:text="@string/label_signal"
+        android:textSize="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.058"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_campiona_mic" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

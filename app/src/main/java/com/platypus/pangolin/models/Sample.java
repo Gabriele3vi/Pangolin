@@ -3,6 +3,9 @@ package com.platypus.pangolin.models;
 import java.util.Date;
 
 public class Sample {
+    //TODO ricordarsi che sample deve avere anche latitudine e longitudine del sample
+    //vediamo più avanti come omplementare la cosa
+
     private SampleType type;
     private Date date;
     private SignalCondition condition;
@@ -49,11 +52,11 @@ public class Sample {
 
     @Override
     public String toString() {
-        return "Sample{" +
-                "type=" + type +
-                ", date=" + date +
-                ", condition=" + condition +
-                ", value=" + value +
-                '}';
+        return "Sample {" +
+                "\ntype=" + type +
+                ", \ndate=" + date +
+                ", \ncondition=" + condition +
+                ", \nvalue=" + value +
+                "\n}";
     }
 }

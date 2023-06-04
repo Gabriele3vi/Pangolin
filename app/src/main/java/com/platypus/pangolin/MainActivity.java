@@ -1,15 +1,13 @@
 package com.platypus.pangolin;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
-import android.telephony.CellSignalStrength;
-import android.telephony.TelephonyManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -19,14 +17,14 @@ import com.platypus.pangolin.models.Sample;
 import com.platypus.pangolin.samplers.AcousticNoiseSampler;
 import com.platypus.pangolin.samplers.Sampler;
 import com.platypus.pangolin.samplers.SignalStrengthSampler;
-
-import java.util.List;
+import com.platypus.pangolin.samplers.WifiSampler;
 
 public class MainActivity extends AppCompatActivity {
+    private static final int REQUEST_MICROPHONE = 1;
     private Button btn_campiona;
-    private Button btn_stop;
+    private Button btn_wifi;
     private Button btn_sample_signal;
-    private TextView tv_mic_result;
+    private TextView tv_out;
 
 
     private EditText timeToSample;
@@ -39,18 +37,21 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         btn_campiona = findViewById(R.id.btn_campiona_mic);
-        btn_stop = findViewById(R.id.btn_stop_mic);
+        btn_wifi = findViewById(R.id.wifi);
         btn_sample_signal = findViewById(R.id.btn_sample_signal);
-        tv_mic_result = findViewById(R.id.tv_microphone_value);
+        tv_out = findViewById(R.id.tv_out);
         timeToSample = findViewById(R.id.tx_millis);
+
+        //TODO chiedere tutti i permessi all'esecuzione
+        askForMicrophonePermissions();
 
         btn_campiona.setOnClickListener(e -> {
             //startRecording();
             testAcousticNoiseSampler();
         });
 
-        btn_stop.setOnClickListener(e -> {
-            Toast.makeText(this, "stop", Toast.LENGTH_LONG).show();
+        btn_wifi.setOnClickListener(e -> {
+            testWifiSampler();
         });
 
         btn_sample_signal.setOnClickListener(e -> {
@@ -65,15 +66,36 @@ public class MainActivity extends AppCompatActivity {
         AcousticNoiseSampler sampler = new AcousticNoiseSampler(millis);
 
         Sample s = sampler.getSample();
-        System.out.println(s);
+        if (s  == null){
+            tv_out.setText("Errore nella lettura del rumore");
+        } else {
+            tv_out.setText(s.toString());
+            System.out.println(s);
+        }
     }
 
     public void testSignalSampler(){
         Sampler signalSampler = new SignalStrengthSampler(this);
         Sample s = signalSampler.getSample();
-        System.out.println(s.toString());
+        if (s  == null){
+            tv_out.setText("Errore nella lettura del segnale telefonico");
+        } else {
+            tv_out.setText(s.toString());
+            System.out.println(s);
+        }
     }
 
+    public void testWifiSampler(){
+        tv_out.setText("Wifiiiiii");
+        WifiSampler sampler = new WifiSampler(this);
+        Sample s = sampler.getSample();
+        if (s  == null){
+            tv_out.setText("Errore nella lettura del WIFI");
+        } else {
+            tv_out.setText(s.toString());
+            System.out.println(s);
+        }
+    }
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -83,6 +105,16 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 Toast.makeText(this, "Autorizzazione non concessa", Toast.LENGTH_SHORT).show();
             }
+        }
+    }
+
+    //TODO scrivere i metodi per chiedere tutti i permessi necessari
+    //vedi link di geekforgeeks nella cartella di chrome AndroidDev
+    public void askForMicrophonePermissions(){
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO},
+                    REQUEST_MICROPHONE);
         }
     }
 

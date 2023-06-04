@@ -22,11 +22,12 @@ public class SignalStrengthSampler extends Sampler {
     public SignalStrengthSampler(Context context){
         telephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
     }
+
     private double getData(){
         List<CellSignalStrength> cellSignals = telephonyManager.getSignalStrength().getCellSignalStrengths();
 
         //get the signal of the current SIM
-        CellSignalStrength signalStrength = cellSignals == null ? cellSignals.get(0)  : null;
+        CellSignalStrength signalStrength = cellSignals == null ? cellSignals.get(0) : null;
 
         if (signalStrength == null)
                 return 0;
@@ -83,7 +84,7 @@ public class SignalStrengthSampler extends Sampler {
         List<CellSignalStrength> cellSignals = telephonyManager.getSignalStrength().getCellSignalStrengths();
 
         //get the signal of the current SIM
-        CellSignalStrength signalStrength = cellSignals != null ? cellSignals.get(0)  : null;
+        CellSignalStrength signalStrength = cellSignals.size() != 0 ? cellSignals.get(0)  : null;
 
         if (signalStrength == null)
             return null;

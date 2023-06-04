@@ -141,7 +141,7 @@ public class AcousticNoiseSampler extends Sampler{
 
             if (db >= -10)
                condition = SignalCondition.Poor;
-            else if (db >= -40)
+            else if (db >= -50)
                 condition = SignalCondition.Good;
             else
                 condition = SignalCondition.Excellent;
