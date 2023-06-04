@@ -1,15 +1,18 @@
-package com.platypus.pangolin;
+package com.platypus.pangolin.samplers;
 
 import android.annotation.SuppressLint;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
-import android.widget.Toast;
+
+import com.platypus.pangolin.models.Sample;
+import com.platypus.pangolin.models.SampleType;
+import com.platypus.pangolin.models.SignalCondition;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class AcousticNoiseSampler {
+public class AcousticNoiseSampler extends Sampler{
     private AudioRecord audioRecorder;
     private final int SAMPLE_RATE = 16000;
     private final int AUDIO_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
@@ -29,11 +32,11 @@ public class AcousticNoiseSampler {
 
     private List<Double> decibelsReadList;
     private int samplingTimeMillis;
-    @SuppressLint("MissingPermission")
-    public AcousticNoiseSampler(int samplingTimeMillis){
-        this.samplingTimeMillis = samplingTimeMillis;
 
-        audioRecorder =  new AudioRecord(
+    @SuppressLint("MissingPermission")
+    public AcousticNoiseSampler(int samplingTimeMillis) {
+        this.samplingTimeMillis = samplingTimeMillis >= 500 ? samplingTimeMillis : 1000;
+        audioRecorder = new AudioRecord(
                 MediaRecorder.AudioSource.MIC,
                 SAMPLE_RATE,
                 AUDIO_CHANNELS,
@@ -95,7 +98,11 @@ public class AcousticNoiseSampler {
             short[] buffer = new short[BUFFER_SIZE_RECORDING];
             int byteRead = audioRecorder.read(buffer, 0, buffer.length);
             double decibelRead = getDecibelFromBuffer(buffer, byteRead);
-            decibelsReadList.add(decibelRead);
+            if(decibelRead != Double.POSITIVE_INFINITY) {
+                decibelsReadList.add(decibelRead);
+            } else {
+                System.out.println("beccaato un infinity");
+            }
         }
     }
 
@@ -125,4 +132,24 @@ public class AcousticNoiseSampler {
         }
     }
 
+
+    @Override
+    public Sample getSample() {
+        try {
+            double db = sample();
+            SignalCondition condition;
+
+            if (db >= -10)
+               condition = SignalCondition.Poor;
+            else if (db >= -40)
+                condition = SignalCondition.Good;
+            else
+                condition = SignalCondition.Excellent;
+
+            return new Sample(SampleType.Noise, condition, db);
+        } catch (IllegalAccessException e) {
+            System.out.println("erroreeeee");
+            return null;
+        }
+    }
 }

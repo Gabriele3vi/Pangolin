@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Pangolin</string>
     <string name="Microphone">Microphone</string>
+    <string name="label_signal">Signal</string>
 </resources>
