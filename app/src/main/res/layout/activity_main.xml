@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    tools:context=".activities.MainActivity">
 
     <TextView
         android:id="@+id/label_microphone"
@@ -61,7 +61,7 @@
         android:layout_marginTop="352dp"
         android:text="Wifi"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.084"
+        app:layout_constraintHorizontal_bias="0.211"
         app:layout_constraintStart_toEndOf="@+id/btn_campiona_mic"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -88,5 +88,16 @@
         app:layout_constraintHorizontal_bias="0.058"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btn_campiona_mic" />
+
+    <Button
+        android:id="@+id/btn_map"
+        android:layout_width="254dp"
+        android:layout_height="53dp"
+        android:layout_marginTop="28dp"
+        android:text="Open map"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.407"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_sample_signal" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -47,17 +47,6 @@ public class AcousticNoiseSampler extends Sampler{
         decibelsReadList = new ArrayList<>();
     }
 
-    public double sample() throws IllegalAccessException {
-        sampleNoise();
-
-        double sum = 0;
-        for(double db : decibelsReadList)
-            sum += db;
-
-        double sample = sum/decibelsReadList.size();
-        decibelsReadList.clear();
-        return sample;
-    }
 
     private void sampleNoise() throws IllegalAccessException{
         //check if the audioRecord is initialized
@@ -69,7 +58,7 @@ public class AcousticNoiseSampler extends Sampler{
         isRecording = true;
 
         //create and start the thread to read the data from the mic
-        recordingThread = new Thread(this::readSamples);
+        recordingThread = new Thread(this::readData);
         recordingThread.start();
 
         //create and start the timer thread
@@ -93,12 +82,12 @@ public class AcousticNoiseSampler extends Sampler{
         }
     }
 
-    private void readSamples(){
+    private void readData(){
         while(isRecording){
             short[] buffer = new short[BUFFER_SIZE_RECORDING];
             int byteRead = audioRecorder.read(buffer, 0, buffer.length);
             double decibelRead = getDecibelFromBuffer(buffer, byteRead);
-            if(decibelRead != Double.POSITIVE_INFINITY) {
+            if (decibelRead != Double.NEGATIVE_INFINITY) {
                 decibelsReadList.add(decibelRead);
             } else {
                 System.out.println("beccaato un infinity");
@@ -109,7 +98,6 @@ public class AcousticNoiseSampler extends Sampler{
     private double getDecibelFromBuffer(short[] buffer, int byteRead){
         //get the maximum value of the buffer to clean the data
         int max = buffer[0];
-
         for(int i = 0; i < byteRead; i++) {
             int current = Math.abs(buffer[i]);
             if (current > max)
@@ -136,17 +124,23 @@ public class AcousticNoiseSampler extends Sampler{
     @Override
     public Sample getSample() {
         try {
-            double db = sample();
-            SignalCondition condition;
+            sampleNoise();
+
+            double sum = 0;
+            for (double db : decibelsReadList)
+                sum += db;
+
+            double db = sum / decibelsReadList.size();
+
+            decibelsReadList.clear();
 
             if (db >= -10)
-               condition = SignalCondition.Poor;
+                return new Sample(SampleType.Noise, SignalCondition.Poor, db);
             else if (db >= -50)
-                condition = SignalCondition.Good;
+                return new Sample(SampleType.Noise, SignalCondition.Good, db);
             else
-                condition = SignalCondition.Excellent;
+                return new Sample(SampleType.Noise, SignalCondition.Excellent, db);
 
-            return new Sample(SampleType.Noise, condition, db);
         } catch (IllegalAccessException e) {
             System.out.println("erroreeeee");
             return null;

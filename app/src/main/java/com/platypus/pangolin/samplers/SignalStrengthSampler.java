@@ -19,8 +19,8 @@ import java.util.List;
 public class SignalStrengthSampler extends Sampler {
     private TelephonyManager telephonyManager;
 
-    public SignalStrengthSampler(Context context){
-        telephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+    public SignalStrengthSampler(TelephonyManager telephonyManager) {
+        this.telephonyManager = telephonyManager;
     }
 
     private double getData(){
@@ -45,7 +45,6 @@ public class SignalStrengthSampler extends Sampler {
             rssi = lteSignal.getDbm();
         } else {
             rssi = signalStrength.getDbm();
-
         }
 
         return rssi;

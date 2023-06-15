@@ -10,9 +10,9 @@ import com.platypus.pangolin.models.SignalCondition;
 
 public class WifiSampler extends Sampler{
     WifiManager wifiManager;
-    public WifiSampler(Context context){
-        wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-        WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+
+    public WifiSampler(WifiManager wifiManager) {
+        this.wifiManager = wifiManager;
     }
     @Override
     public Sample getSample() {

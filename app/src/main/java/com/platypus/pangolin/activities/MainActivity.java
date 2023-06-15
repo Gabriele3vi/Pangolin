@@ -1,4 +1,4 @@
-package com.platypus.pangolin;
+package com.platypus.pangolin.activities;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -6,13 +6,17 @@ import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.telephony.TelephonyManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.platypus.pangolin.R;
 import com.platypus.pangolin.models.Sample;
 import com.platypus.pangolin.samplers.AcousticNoiseSampler;
 import com.platypus.pangolin.samplers.Sampler;
@@ -24,12 +28,17 @@ public class MainActivity extends AppCompatActivity {
     private Button btn_campiona;
     private Button btn_wifi;
     private Button btn_sample_signal;
+
+    private Button btn_openMap;
     private TextView tv_out;
 
 
     private EditText timeToSample;
 
     final int RECORD_AUDIO_PERMISSION_CODE = 1;
+
+    private WifiManager wifiManager;
+    private TelephonyManager telephonyManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,8 +48,13 @@ public class MainActivity extends AppCompatActivity {
         btn_campiona = findViewById(R.id.btn_campiona_mic);
         btn_wifi = findViewById(R.id.wifi);
         btn_sample_signal = findViewById(R.id.btn_sample_signal);
+        btn_openMap = findViewById(R.id.btn_map);
         tv_out = findViewById(R.id.tv_out);
         timeToSample = findViewById(R.id.tx_millis);
+
+
+        wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
+        telephonyManager = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
 
         //TODO chiedere tutti i permessi all'esecuzione
         askForMicrophonePermissions();
@@ -52,12 +66,19 @@ public class MainActivity extends AppCompatActivity {
 
         btn_wifi.setOnClickListener(e -> {
             testWifiSampler();
+
         });
 
         btn_sample_signal.setOnClickListener(e -> {
             testSignalSampler();
-
         });
+
+        btn_openMap.setOnClickListener(e -> {
+            Intent i = new Intent(this, MapsActivity.class);
+            startActivity(i);
+        });
+
+
     }
 
     public void testAcousticNoiseSampler(){
@@ -75,7 +96,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void testSignalSampler(){
-        Sampler signalSampler = new SignalStrengthSampler(this);
+        Sampler signalSampler = new SignalStrengthSampler(telephonyManager);
         Sample s = signalSampler.getSample();
         if (s  == null){
             tv_out.setText("Errore nella lettura del segnale telefonico");
@@ -87,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void testWifiSampler(){
         tv_out.setText("Wifiiiiii");
-        WifiSampler sampler = new WifiSampler(this);
+        WifiSampler sampler = new WifiSampler(wifiManager);
         Sample s = sampler.getSample();
         if (s  == null){
             tv_out.setText("Errore nella lettura del WIFI");
