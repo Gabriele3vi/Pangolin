@@ -135,11 +135,11 @@ public class AcousticNoiseSampler extends Sampler{
             decibelsReadList.clear();
 
             if (db >= -10)
-                return new Sample(SampleType.Noise, SignalCondition.Poor, db);
+                return new Sample(SampleType.Noise, SignalCondition.POOR, db);
             else if (db >= -50)
-                return new Sample(SampleType.Noise, SignalCondition.Good, db);
+                return new Sample(SampleType.Noise, SignalCondition.GOOD, db);
             else
-                return new Sample(SampleType.Noise, SignalCondition.Excellent, db);
+                return new Sample(SampleType.Noise, SignalCondition.EXCELLENT, db);
 
         } catch (IllegalAccessException e) {
             System.out.println("erroreeeee");

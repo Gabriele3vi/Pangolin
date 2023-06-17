@@ -74,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btn_openMap.setOnClickListener(e -> {
-            Intent i = new Intent(this, MapsActivity.class);
+            Intent i = new Intent(this, MapActivity.class);
             startActivity(i);
         });
 

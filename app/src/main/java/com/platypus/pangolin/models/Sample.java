@@ -8,10 +8,10 @@ public class Sample {
 
     private SampleType type;
     private Date date;
-    private SignalCondition condition;
+    private int condition;
     private double value;
 
-    public Sample(SampleType type, SignalCondition condition, double value) {
+    public Sample(SampleType type, int condition, double value) {
         this.type = type;
         this.value = value;
         this.condition = condition;
@@ -26,7 +26,7 @@ public class Sample {
         return date;
     }
 
-    public SignalCondition getCondition() {
+    public int getCondition() {
         return condition;
     }
 
@@ -42,7 +42,7 @@ public class Sample {
         this.date = date;
     }
 
-    public void setCondition(SignalCondition condition) {
+    public void setCondition(int condition) {
         this.condition = condition;
     }
 

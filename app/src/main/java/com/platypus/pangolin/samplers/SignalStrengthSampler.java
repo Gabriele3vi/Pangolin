@@ -23,58 +23,28 @@ public class SignalStrengthSampler extends Sampler {
         this.telephonyManager = telephonyManager;
     }
 
-    private double getData(){
-        List<CellSignalStrength> cellSignals = telephonyManager.getSignalStrength().getCellSignalStrengths();
-
-        //get the signal of the current SIM
-        CellSignalStrength signalStrength = cellSignals == null ? cellSignals.get(0) : null;
-
-        if (signalStrength == null)
-                return 0;
-
-        double rssi;
-
-        if (signalStrength instanceof CellSignalStrengthLte) {
-            CellSignalStrengthLte lteSignal = (CellSignalStrengthLte) signalStrength;
-            rssi = lteSignal.getRssi();
-        } else if (signalStrength instanceof CellSignalStrengthCdma) {
-            CellSignalStrengthCdma lteSignal = (CellSignalStrengthCdma) signalStrength;
-            rssi = lteSignal.getCdmaDbm();
-        } else if (signalStrength instanceof CellSignalStrengthWcdma) {
-            CellSignalStrengthWcdma lteSignal = (CellSignalStrengthWcdma) signalStrength;
-            rssi = lteSignal.getDbm();
-        } else {
-            rssi = signalStrength.getDbm();
-        }
-
-        return rssi;
+    private int getLteCondition(double rssi){
+        return getCondition(-65, -70, rssi);
     }
 
-    private SignalCondition getLteCondition(double rssi){
-        if (rssi >= -65)
-            return SignalCondition.Excellent;
-        if (rssi >= -70)
-            return SignalCondition.Good;
-        else
-            return  SignalCondition.Poor;
+    private int getCdmaCondition(double rssi){
+        return getCondition(-70, -95, rssi);
     }
 
-    private SignalCondition getCdmaCondition(double rssi){
-        if (rssi >= -70)
-            return SignalCondition.Excellent;
-        if (rssi >= -95)
-            return SignalCondition.Good;
-        else
-            return  SignalCondition.Poor;
+    private int getGenericCondition(double rssi){
+        return getCondition(-60, -80, rssi);
     }
 
-    private SignalCondition getGenericCondition(double rssi){
-        if (rssi >= -60)
-            return SignalCondition.Excellent;
-        if (rssi >= -80)
-            return SignalCondition.Good;
+    //Dato che in base al tipo di rete a cui sono collegato il RSSI ha un significato diverso,
+    //questo metodo serve per non scrivere troppo codice ripetuto
+    //
+    private int getCondition(int excellentBound, int goodBound, double rssi) {
+        if (rssi >= excellentBound)
+            return SignalCondition.EXCELLENT;
+        if (rssi >= goodBound)
+            return SignalCondition.GOOD;
         else
-            return  SignalCondition.Poor;
+            return  SignalCondition.POOR;
     }
 
 
@@ -89,7 +59,7 @@ public class SignalStrengthSampler extends Sampler {
             return null;
 
         double rssi;
-        SignalCondition condition;
+        int condition;
 
         if (signalStrength instanceof CellSignalStrengthLte) {
             CellSignalStrengthLte lteSignal = (CellSignalStrengthLte) signalStrength;
@@ -104,7 +74,7 @@ public class SignalStrengthSampler extends Sampler {
             condition = getGenericCondition(rssi);
         }
 
-        //if rssi > 0 the sample something went wrong
+        //if rssi > 0 something went wrong
         if (rssi > 0)
                 return  null;
         return new Sample(SampleType.Signal, condition, rssi);

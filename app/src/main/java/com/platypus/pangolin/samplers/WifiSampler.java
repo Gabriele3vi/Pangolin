@@ -21,14 +21,14 @@ public class WifiSampler extends Sampler{
         WifiInfo wifiInfo = wifiManager.getConnectionInfo();
 
         double rssi = wifiInfo.getRssi();
-        SignalCondition condition;
+        int condition;
 
         if (rssi >= -50)
-            condition = SignalCondition.Excellent;
+            condition = SignalCondition.EXCELLENT;
         else if (rssi >= -65)
-            condition = SignalCondition.Good;
+            condition = SignalCondition.GOOD;
         else
-            condition = SignalCondition.Poor;
+            condition = SignalCondition.POOR;
 
         return new Sample(SampleType.Wifi, condition, rssi);
     }
