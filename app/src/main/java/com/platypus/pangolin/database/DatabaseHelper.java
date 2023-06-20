@@ -17,17 +17,23 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final int DATABASE_VERSION = 1;
     private static final String TABLE_NAME = "Samples";
 
-    private static final String COLUMN_DATA = "date";
+    private static final String COLUMN_TIMESTAMP = "timestamp";
     private static final String COLUMN_TYPE = "type";
     private static final String COLUMN_VALUE = "value";
     private static final String COLUMN_CONDITION = "condition";
-    private static final String COLUMN_COORDINATE = "coordinate";
+    //private static final String COLUMN_COORDINATE = "coordinate";
+    private static final String COLUMN_GRIDZONE = "gridzone";
+    private static final String COLUMN_SQUARE = "square";
+    private static final String COLUMN_EASTING = "easting";
+    private static final String COLUMN_NORTHING = "northing";
+
 
     public DatabaseHelper(@Nullable Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
         this.context = context;
     }
 
+    /*
     @Override
     public void onCreate(SQLiteDatabase db) {
         String query = "CREATE TABLE " +  TABLE_NAME +
@@ -41,22 +47,47 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         db.execSQL(query);
 
-    }
+    }*/
 
     @Override
-    public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
+    public void onCreate(SQLiteDatabase db) {
+        String query = "CREATE TABLE " +  TABLE_NAME +
+                " ("  +  COLUMN_TYPE +  " VARCHAR(30) NOT NULL," +
+                COLUMN_TIMESTAMP + " TIMESTAMP NOT NULL," +
+                COLUMN_VALUE + " REAL NOT NULL," +
+                COLUMN_CONDITION + " INTEGER NOT NULL," +
+                COLUMN_GRIDZONE +  " VARCHAR(3) NOT NULL," +
+                COLUMN_SQUARE +  " VARCHAR(2) NOT NULL," +
+                COLUMN_EASTING +  " VARCHAR(5) NOT NULL," +
+                COLUMN_NORTHING +  " VARCHAR(5) NOT NULL," +
+                " primary key("+ COLUMN_TIMESTAMP + "," + COLUMN_TYPE + ")" +
+                ");";
+
+        db.execSQL(query);
 
     }
 
-    public void addSample(String type, String data, double value, int condition, String coordinate){
+    public void addSample(
+            String type,
+            String timeStamp,
+            double value,
+            int condition,
+            String gridzone,
+            String square,
+            String easting,
+            String northing)
+    {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues cv = new ContentValues();
 
         cv.put(COLUMN_TYPE, type);
-        cv.put(COLUMN_DATA, data);
+        cv.put(COLUMN_TIMESTAMP, timeStamp);
         cv.put(COLUMN_VALUE, value);
         cv.put(COLUMN_CONDITION, condition);
-        cv.put(COLUMN_COORDINATE, coordinate);
+        cv.put(COLUMN_GRIDZONE, gridzone);
+        cv.put(COLUMN_SQUARE, square);
+        cv.put(COLUMN_EASTING, easting);
+        cv.put(COLUMN_NORTHING, northing);
 
         long result = db.insert(TABLE_NAME, null, cv);
 
@@ -66,27 +97,53 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             Toast.makeText(context, "Inserimento avvenuto correttamente", Toast.LENGTH_SHORT).show();
     }
 
+
+
+    @Override
+    public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
+
+    }
+
     public Cursor getSamplesByType(SampleType type){
         SQLiteDatabase db = this.getReadableDatabase();
         String query = "SELECT date, value, condition, coordinate FROM " + TABLE_NAME + " WHERE type = '" + type.toString() + "'";
         return db.rawQuery(query, null);
     }
 
-    public Cursor getValueByAccuracyAndDate(int accuracy, int dateLimit){
+    /*
+    * QUERY DI RIFERIMENTO, STUDIALA IN VISTA DELL'ESAME
+        SELECT  zone,
+                band,
+                substr(easting, 1, 3) AS east_cast,
+                substr(northing, 1, 3) AS north_cast,
+                AVG(cond) AS media_cond
+        FROM (
+            SELECT data, tipo, val, cond, zone, band, easting, northing,
+            ROW_NUMBER() OVER (PARTITION BY substr(easting, 1, 3), substr(northing, 1, 3) ORDER BY data) AS rn
+            FROM sample
+        ) AS subquery
+        WHERE rn <= 5 and tipo = "noise"
+        GROUP BY  zone, band, east_cast, north_cast
+        *
+        * */
+
+    //TODO pulisci questo codice che è illeggibile, usa il metodo corretto
+    public Cursor getAvgConditionByAccuracy(String sampleType, int accuracy, int dateLimit){
         SQLiteDatabase db = this.getReadableDatabase();
-        String query = "SELECT zone, " +
-                "band," +
-                "substr(easting, 1, 3) AS east_cast," +
-                "substr(northing, 1, 3) AS north_cast," +
-                "AVG(cond) AS media_cond" +
+        String query = "SELECT " + COLUMN_GRIDZONE + ", "
+                + COLUMN_SQUARE +"," +
+                "substr(" + COLUMN_EASTING + ", 1," +  accuracy + ") AS easting_cast," +
+                "substr(" + COLUMN_NORTHING + ", 1," +  accuracy + ") AS northing_cast," +
+                "AVG(" + COLUMN_CONDITION+ ") AS avg_cond " +
                 "FROM (" +
-                "    SELECT data, tipo, val, cond, zone, band, easting, northing, " +
-                "           ROW_NUMBER() OVER (PARTITION BY substr(easting, 1, 3), substr(northing, 1, 3) ORDER BY data) AS rn\n" +
-                "    FROM sample" +
-                ")" +
-                "WHERE rn <= " + accuracy + " " +
-                "GROUP BY zone, band, east_cast, north_cast";
-        return null;
+                "    SELECT timestamp, type, value, condition, gridzone, square, easting, northing, " +
+                "           ROW_NUMBER() OVER (PARTITION BY substr(easting, 1," +  accuracy + "), substr(northing, 1," +  accuracy +
+                ") ORDER BY timestamp) AS rn " +
+                "    FROM samples" +
+                ") AS subquery " +
+                "WHERE rn <= " + accuracy + " AND type = '" + sampleType+ "' " +
+                "GROUP BY gridzone, square, easting_cast, northing_cast";
+        return db.rawQuery(query, null);
     }
 
     public void resetDB(){

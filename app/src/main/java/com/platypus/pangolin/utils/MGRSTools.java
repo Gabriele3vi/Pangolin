@@ -66,27 +66,8 @@ public class MGRSTools {
         return corners;
     }
 
-    public static MGRS fromStringToMGRS(String mgrsString) {
 
-        int offset = 0;
-
-        if (mgrsString.length() % 2 != 0){
-            offset = 1;
-        }
-
-        int zone = Integer.parseInt(mgrsString.substring(0, offset + 1));
-        char band = mgrsString.charAt(1 + offset);
-        char column = mgrsString.charAt(2 + offset);
-        char row = mgrsString.charAt(3 + offset);
-
-        String ne = mgrsString.substring(4 + offset);
-        long e = Integer.parseInt(ne.substring(0, ne.length()/2));
-        long n = Integer.parseInt(ne.substring(ne.length()/2));
-
-        return new MGRS(zone, band, column, row, e, n);
-    }
-
-    public static MGRS fromStringToMGRS(String mgrsString, int accuracy){
+    public static MGRS fromStringToMGRS(String mgrsString){
         //l'offset è 1 se la stringa ha lunghezza dispari, significa che la
         //gridzone è composta da due cifre e il numero
         int offset = mgrsString.length() % 2 != 0 ? 1 : 0;
@@ -97,6 +78,8 @@ public class MGRSTools {
         char row = mgrsString.charAt(3 + offset);
 
         String ne = mgrsString.substring(4 + offset);
+
+        int accuracy = ne.length()/2;
         //i math.pow sono necessari per creare la coordinata corretta,
         //senza gli easting e northing vengono letti come un long senza gli zeri davanti
         long e = (int) (Integer.parseInt(ne.substring(0, accuracy)) * Math.pow(10, 5 - accuracy));
@@ -105,6 +88,9 @@ public class MGRSTools {
         return new MGRS(zone, band, column, row, e, n);
     }
 
+    /**
+    * Data una coordinata MGRS, la taglia ad una accuratezza minore
+     * **/
     public static String castMGRSCoord(String mgrsString, int accuracy){
         int offset = 0;
 
@@ -121,5 +107,14 @@ public class MGRSTools {
         String e = ne.substring(0, accuracy);
         String n = ne.substring(ne.length()/2,  ne.length()/2 + accuracy);
         return zone + "" + band + column + row + e + n ;
+    }
+
+    public static String getMaxAccuracyEN(long en){
+        String enString = en + "";
+        int length = enString.length();
+
+        for (int i = 0; i < 5 - length; i++)
+                enString = "0" + enString;
+        return  enString;
     }
 }

@@ -35,6 +35,7 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
+import com.google.android.gms.maps.model.TileOverlay;
 import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.platypus.pangolin.R;
@@ -48,10 +49,7 @@ import com.platypus.pangolin.samplers.WifiSampler;
 import com.platypus.pangolin.utils.MGRSTools;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import mil.nga.mgrs.MGRS;
 import mil.nga.mgrs.grid.GridType;
@@ -76,13 +74,9 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
     private Sampler noiseSampler, signalSampler, wifiSampler, currentSampler;
     private List<Polygon> polygonList;
-
     private MGRSTileProvider tileProvider;
-
     private GridType mapGridType;
     private DatabaseHelper db;
-
-    private HashMap<String, ArrayList<Sample>> localizedSamples;
 
     private void initializeLocationServices(){
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
@@ -96,19 +90,6 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                 super.onLocationResult(locationResult);
             }
         };
-    }
-
-    private void updateSampleType(SampleType newType){
-        currentSampleType = newType;
-
-        if (currentSampleType == SampleType.Noise)
-            currentSampler = noiseSampler;
-        else if (currentSampleType == SampleType.Signal)
-            currentSampler = signalSampler;
-        else
-            currentSampler = wifiSampler;
-
-        loadHeatMap();
     }
 
     @SuppressLint("MissingPermission")
@@ -128,7 +109,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         btn_resetDB = findViewById(R.id.btn_resetDB);
         db = new DatabaseHelper(this);
 
-        mapGridType = GridType.HUNDRED_METER;
+        mapGridType = GridType.METER;
 
         polygonList = new ArrayList<>();
 
@@ -167,16 +148,16 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                         mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cp));
                     }
                 });
-
     }
 
     @SuppressLint("MissingPermission")
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+
         //Disegna la griglia corrispondente
         tileProvider = MGRSTileProvider.create(this, GridType.GZD, mapGridType);
-        mMap.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+        TileOverlay tl = mMap.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 
         if (hasGPSPermissios) {
             setUpCamera();
@@ -184,11 +165,24 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             btn_sample.setEnabled(true);
         }
 
-        //Imposta la mappa del noise di default
+        //Imposta la mappa del noise al primo avvio
         btn_noise.performClick();
-
-        //colorTile(new LatLng(44.498955, 11.327591), Color.rgb(0,255,0), mapGridType);
     }
+
+    private void updateSampleType(SampleType newType){
+        currentSampleType = newType;
+
+        if (currentSampleType == SampleType.Noise)
+            currentSampler = noiseSampler;
+        else if (currentSampleType == SampleType.Signal)
+            currentSampler = signalSampler;
+        else
+            currentSampler = wifiSampler;
+
+        loadHeatMap();
+    }
+
+
 
     private void initializeSamplers() {
         WifiManager wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
@@ -217,8 +211,18 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            hasGPSPermissios = true;
+        if(requestCode == 1001) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                hasGPSPermissios = true;
+            }
+        }
+
+        if (requestCode == REQUEST_ENABLE_GPS) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                hasGPSPermissios = true;
+            } else {
+                hasGPSPermissios = false;
+            }
         }
     }
 
@@ -259,58 +263,38 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         for (Polygon p : polygonList){
             p.remove();
         }
-
         polygonList.clear();
 
-        //ricreo l'hashmap
-        localizedSamples = new HashMap<>();
 
-        //creo il cursore per lavorare col DB
-        Cursor samplesCursor = db.getSamplesByType(this.currentSampleType);
+        //Prendo i dati dal database
+        Cursor samplesCursor = db.getAvgConditionByAccuracy(
+                currentSampleType.toString(),
+                mapGridType.getAccuracy(),
+                5
+        );
 
         if (samplesCursor == null){
             Toast.makeText(this, "Error while retriving data", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        //estraggo i dati dal database
-        while (samplesCursor.moveToNext()){
-            //prendo i dati dal DB
-            String data = samplesCursor.getString(0);
-            double val = samplesCursor.getDouble(1);
-            int condition = samplesCursor.getInt(2);
-            String coordCasted = MGRSTools.castMGRSCoord(samplesCursor.getString(3), mapGridType.getAccuracy());
-            Sample currentSample = new Sample(currentSampleType, condition, val, data);
-            System.out.println("DB coord: " + samplesCursor.getString(3));
-            //aggiungo l'elemento nella casella corretta dall'hashmap
-            localizedSamples.computeIfAbsent(coordCasted, k -> new ArrayList<>());
-            localizedSamples.get(coordCasted).add(currentSample);
+        while(samplesCursor.moveToNext()){
+            //prendo la coordinata
+            String gridzone = samplesCursor.getString(0);
+            String square = samplesCursor.getString(1);
+            String easting = samplesCursor.getString(2);
+            String northing = samplesCursor.getString(3);
+            //prendo la condizione
+            int avg_cond = Math.round(samplesCursor.getFloat(4));
+
+            String coordString = gridzone + square + easting + northing;
+            MGRS MGRScoord = MGRSTools.fromStringToMGRS(coordString);
+            //coloro il quadrato corrispondente
+            colorTile(MGRScoord, getColorByValue(avg_cond), mapGridType);
+            System.out.println(gridzone + square + easting + northing + " COND: " + avg_cond);
         }
 
         samplesCursor.close();
-
-        //itero sull'hashmap, calcolo la media e disegno la tile
-        for (Map.Entry<String, ArrayList<Sample>> entry : localizedSamples.entrySet()){
-            //prendo i vari dati
-            String coord = entry.getKey();
-            ArrayList<Sample> samples = entry.getValue();
-            Collections.sort(samples);
-
-            //callcolo la media fermandomi all'impostazione scelta dall'utente
-            int sum = 0;
-            int maxSamples = 5;
-
-            for (int i = 0; i < samples.size() && i < maxSamples; i++){
-                sum += samples.get(i).getCondition();
-            }
-
-            int mean = Math.round(sum / samples.size());
-            System.out.println("Raw coord: " + coord);
-            MGRS cordsMGRS = MGRSTools.fromStringToMGRS(coord, mapGridType.getAccuracy());
-            System.out.println("MGRS object coord: " + cordsMGRS.toString());
-
-            colorTile(cordsMGRS, getColorByValue(mean), mapGridType);
-        }
     }
 
     private int getColorByValue(int val){
@@ -342,18 +326,29 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                     if (location != null) {
                         LatLng cor = new LatLng(location.getLatitude(), location.getLongitude());
                         MGRS currentLocation = tileProvider.getMGRS(cor);
+                        String zone = currentLocation.getZone() + "" + currentLocation.getBand();
+                        String square = currentLocation.getColumnRowId();
+                        String easting = MGRSTools.getMaxAccuracyEN(currentLocation.getEasting());
+                        String northing = MGRSTools.getMaxAccuracyEN(currentLocation.getNorthing());
+
 
                         Log.d("COORD2", currentLocation.toString());
+                        System.out.println("Original coord: " + currentLocation.toString());
+                        System.out.println(zone + " " + square + " " + easting + " " + northing);
                         //Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+
                         db.addSample(
                                 newSample.getType().toString(),
                                 newSample.getTimeStamp(),
                                 newSample.getValue(),
                                 newSample.getCondition(),
-                                currentLocation.toString()
+                                zone,
+                                square,
+                                easting,
+                                northing
                                 );
                     }
                 });
-        loadHeatMap();
+        //loadHeatMap();
     }
 }
