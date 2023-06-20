@@ -8,12 +8,10 @@ import mil.nga.mgrs.MGRSUtils;
 
 public class LocalizedSample {
     Sample basicSample;
-    LatLng latLngCoords;
-    MGRS mgrsCoords;
+    String mgrsCoords;
 
-    public LocalizedSample(Sample sample, LatLng coords, MGRS mgrsCoords) {
+    public LocalizedSample(Sample sample, String mgrsCoords) {
         this.basicSample = sample;
-        this.latLngCoords = coords;
         this.mgrsCoords = mgrsCoords;
     }
 
@@ -25,19 +23,11 @@ public class LocalizedSample {
         this.basicSample = basicSample;
     }
 
-    public LatLng getLatLngCoords() {
-        return latLngCoords;
-    }
-
-    public void setLatLngCoords(LatLng latLngCoords) {
-        this.latLngCoords = latLngCoords;
-    }
-
-    public MGRS getMgrsCoords() {
+    public String getMgrsCoords() {
         return mgrsCoords;
     }
 
-    public void setMgrsCoords(MGRS mgrsCoords) {
+    public void setMgrsCoords(String mgrsCoords) {
         this.mgrsCoords = mgrsCoords;
     }
 }

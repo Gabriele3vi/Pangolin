@@ -5,13 +5,16 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Color;
-import android.location.Location;
 import android.location.LocationManager;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.os.Looper;
 import android.provider.Settings;
+import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.widget.Button;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -33,16 +36,24 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.TileOverlayOptions;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.platypus.pangolin.R;
+import com.platypus.pangolin.database.DatabaseHelper;
+import com.platypus.pangolin.models.Sample;
 import com.platypus.pangolin.models.SampleType;
+import com.platypus.pangolin.samplers.AcousticNoiseSampler;
+import com.platypus.pangolin.samplers.Sampler;
+import com.platypus.pangolin.samplers.SignalStrengthSampler;
+import com.platypus.pangolin.samplers.WifiSampler;
 import com.platypus.pangolin.utils.MGRSTools;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import mil.nga.grid.features.Point;
 import mil.nga.mgrs.MGRS;
-import mil.nga.mgrs.MGRSUtils;
 import mil.nga.mgrs.grid.GridType;
 import mil.nga.mgrs.tile.MGRSTileProvider;
 
@@ -57,7 +68,21 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     private LocationRequest locationRequest;
     private FusedLocationProviderClient fusedLocationClient;
 
-    MGRSTileProvider tileProvider;
+    private FloatingActionButton btn_sample, btn_resetDB;
+
+    private Button btn_noise, btn_signal, btn_wifi;
+
+    private SampleType currentSampleType;
+
+    private Sampler noiseSampler, signalSampler, wifiSampler, currentSampler;
+    private List<Polygon> polygonList;
+
+    private MGRSTileProvider tileProvider;
+
+    private GridType mapGridType;
+    private DatabaseHelper db;
+
+    private HashMap<String, ArrayList<Sample>> localizedSamples;
 
     private void initializeLocationServices(){
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
@@ -73,6 +98,19 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         };
     }
 
+    private void updateSampleType(SampleType newType){
+        currentSampleType = newType;
+
+        if (currentSampleType == SampleType.Noise)
+            currentSampler = noiseSampler;
+        else if (currentSampleType == SampleType.Signal)
+            currentSampler = signalSampler;
+        else
+            currentSampler = wifiSampler;
+
+        loadHeatMap();
+    }
+
     @SuppressLint("MissingPermission")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,49 +121,84 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-        //codice mio
+        btn_sample = findViewById(R.id.btn_sample);
+        btn_noise = findViewById(R.id.btn_noise);
+        btn_signal = findViewById(R.id.btn_signal);
+        btn_wifi = findViewById(R.id.btn_wifi);
+        btn_resetDB = findViewById(R.id.btn_resetDB);
+        db = new DatabaseHelper(this);
+
+        mapGridType = GridType.HUNDRED_METER;
+
+        polygonList = new ArrayList<>();
+
+        //di base disabilito il bottone, lo abilito solo se il GPS è attivo e posso campionare
+        btn_sample.setEnabled(false);
+        btn_noise.setOnClickListener(e -> updateSampleType(SampleType.Noise));
+        btn_signal.setOnClickListener(e -> updateSampleType(SampleType.Signal));
+        btn_wifi.setOnClickListener(e -> updateSampleType(SampleType.Wifi));
+        btn_sample.setOnClickListener(e -> createSample());
+        btn_resetDB.setOnClickListener(e -> {
+            db.resetDB();
+            Toast.makeText(this, "D", Toast.LENGTH_SHORT).show();
+        });
+
         checkLocationPermissions();
         enableGPS();
         //creo tutti gli oggetti necessari alla localizzazione
         initializeLocationServices();
     }
 
-    private void setUpMap(){
-        tileProvider = MGRSTileProvider.create(this, GridType.GZD, GridType.HUNDRED_METER);
-        mMap.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
-    }
 
     @SuppressLint("MissingPermission")
     private void setUpCamera(){
-        if (hasGPSPermissios) {
-            mMap.setMyLocationEnabled(true);
-            //la prima volta che apri la mappa, ti porta sulla tua posizione
-            fusedLocationClient
-                    .getLastLocation()
-                    .addOnSuccessListener(this, location -> {
-                        if (location != null) {
-                            LatLng pos = new LatLng(location.getLatitude(), location.getLongitude());
-                            colorTile(pos, Color.rgb(250,0,0));
-                            CameraPosition cp = new CameraPosition.Builder()
-                                    .target(pos)
-                                    .zoom(16)
-                                    .build();
-                            mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cp));
-                        }
-                    });
-        }
+        mMap.setMyLocationEnabled(true);
+        //la prima volta che apri la mappa, ti porta sulla tua posizione
+        fusedLocationClient
+                .getLastLocation()
+                .addOnSuccessListener(this, location -> {
+                    if (location != null) {
+                        LatLng pos = new LatLng(location.getLatitude(), location.getLongitude());
+                        //colorTile(pos, Color.rgb(250,0,0), mapGridType);
+                        CameraPosition cp = new CameraPosition.Builder()
+                                .target(pos)
+                                .zoom(16)
+                                .build();
+                        mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cp));
+                    }
+                });
+
     }
 
     @SuppressLint("MissingPermission")
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        //Disegna la griglia corrispondente
+        tileProvider = MGRSTileProvider.create(this, GridType.GZD, mapGridType);
+        mMap.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 
-        setUpMap();
-        loadHeatMap(SampleType.Noise);
-        setUpCamera();
+        if (hasGPSPermissios) {
+            setUpCamera();
+            initializeSamplers();
+            btn_sample.setEnabled(true);
+        }
 
-        colorTile(new LatLng(46.428709, 12.375297), Color.rgb(0,255,0));
+        //Imposta la mappa del noise di default
+        btn_noise.performClick();
+
+        //colorTile(new LatLng(44.498955, 11.327591), Color.rgb(0,255,0), mapGridType);
+    }
+
+    private void initializeSamplers() {
+        WifiManager wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
+        TelephonyManager telephonyManager = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
+
+        this.noiseSampler = new AcousticNoiseSampler(500);
+        this.signalSampler = new SignalStrengthSampler(telephonyManager);
+        this.wifiSampler = new WifiSampler(wifiManager);
+
+        currentSampler = wifiSampler;
     }
 
 
@@ -157,28 +230,130 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         }
     }
 
-    private void colorTile(LatLng coords, int color){
+    private void colorTile(LatLng coords, int value, GridType gridType){
         MGRS mgrsCoord = tileProvider.getMGRS(coords);
-        colorTile(mgrsCoord, color);
+        colorTile(mgrsCoord, value ,gridType);
     }
 
-    private void colorTile(MGRS coords, int color) {
+    private void colorTile(MGRS coords, int color, GridType gridType) {
         if (mMap == null || tileProvider == null)
             return;
 
-        PolygonOptions currentTile = new PolygonOptions().addAll(MGRSTools.calculateTileCorners(coords, GridType.HUNDRED_METER));
+        PolygonOptions currentTile = new PolygonOptions().addAll(MGRSTools.calculateTileCorners(coords, gridType));
         Polygon p = mMap.addPolygon(currentTile);
         p.setStrokeWidth(0);
         p.setFillColor(color);
+
+        polygonList.add(p);
     }
 
-    private void loadHeatMap(SampleType type){
-        if (mMap == null) {
-            Log.e("MAPERROR", "Map is null");
+
+    private void loadHeatMap(){
+        if (mMap == null || currentSampleType == null) {
+            Log.e("MAPERROR", "Somthing went wrong");
+            Toast.makeText(this, "Something went wrong while maps' loading", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        //TODO
-        //meccanismo che pesca i dati dal DB e crea le tile....
+        //Toglie dalla mappa i quadranti precedenti
+        for (Polygon p : polygonList){
+            p.remove();
+        }
+
+        polygonList.clear();
+
+        //ricreo l'hashmap
+        localizedSamples = new HashMap<>();
+
+        //creo il cursore per lavorare col DB
+        Cursor samplesCursor = db.getSamplesByType(this.currentSampleType);
+
+        if (samplesCursor == null){
+            Toast.makeText(this, "Error while retriving data", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        //estraggo i dati dal database
+        while (samplesCursor.moveToNext()){
+            //prendo i dati dal DB
+            String data = samplesCursor.getString(0);
+            double val = samplesCursor.getDouble(1);
+            int condition = samplesCursor.getInt(2);
+            String coordCasted = MGRSTools.castMGRSCoord(samplesCursor.getString(3), mapGridType.getAccuracy());
+            Sample currentSample = new Sample(currentSampleType, condition, val, data);
+            System.out.println("DB coord: " + samplesCursor.getString(3));
+            //aggiungo l'elemento nella casella corretta dall'hashmap
+            localizedSamples.computeIfAbsent(coordCasted, k -> new ArrayList<>());
+            localizedSamples.get(coordCasted).add(currentSample);
+        }
+
+        samplesCursor.close();
+
+        //itero sull'hashmap, calcolo la media e disegno la tile
+        for (Map.Entry<String, ArrayList<Sample>> entry : localizedSamples.entrySet()){
+            //prendo i vari dati
+            String coord = entry.getKey();
+            ArrayList<Sample> samples = entry.getValue();
+            Collections.sort(samples);
+
+            //callcolo la media fermandomi all'impostazione scelta dall'utente
+            int sum = 0;
+            int maxSamples = 5;
+
+            for (int i = 0; i < samples.size() && i < maxSamples; i++){
+                sum += samples.get(i).getCondition();
+            }
+
+            int mean = Math.round(sum / samples.size());
+            System.out.println("Raw coord: " + coord);
+            MGRS cordsMGRS = MGRSTools.fromStringToMGRS(coord, mapGridType.getAccuracy());
+            System.out.println("MGRS object coord: " + cordsMGRS.toString());
+
+            colorTile(cordsMGRS, getColorByValue(mean), mapGridType);
+        }
+    }
+
+    private int getColorByValue(int val){
+        if (val == 0)
+            return Color.rgb(255,0,0);
+        else if (val == 1)
+            return Color.rgb(255,255,0);
+        else
+            return Color.rgb(0, 255, 0);
+    }
+
+    @SuppressLint("MissingPermission")
+    private void createSample() {
+        if (noiseSampler == null || signalSampler == null || wifiSampler == null) {
+            Toast.makeText(this, "Errore durante il sampling", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Sample newSample = currentSampler.getSample();
+
+        if (newSample == null){
+            Toast.makeText(this, "Errore riscontrato durante il sampling, riprovare", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        fusedLocationClient
+                .getLastLocation()
+                .addOnSuccessListener(this, location -> {
+                    if (location != null) {
+                        LatLng cor = new LatLng(location.getLatitude(), location.getLongitude());
+                        MGRS currentLocation = tileProvider.getMGRS(cor);
+
+                        Log.d("COORD2", currentLocation.toString());
+                        //Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+                        db.addSample(
+                                newSample.getType().toString(),
+                                newSample.getTimeStamp(),
+                                newSample.getValue(),
+                                newSample.getCondition(),
+                                currentLocation.toString()
+                                );
+                    }
+                });
+        loadHeatMap();
     }
 }

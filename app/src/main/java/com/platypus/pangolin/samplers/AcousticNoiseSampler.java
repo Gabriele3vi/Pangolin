@@ -36,19 +36,13 @@ public class AcousticNoiseSampler extends Sampler{
     @SuppressLint("MissingPermission")
     public AcousticNoiseSampler(int samplingTimeMillis) {
         this.samplingTimeMillis = samplingTimeMillis >= 500 ? samplingTimeMillis : 1000;
-        audioRecorder = new AudioRecord(
-                MediaRecorder.AudioSource.MIC,
-                SAMPLE_RATE,
-                AUDIO_CHANNELS,
-                AUDIO_FORMAT,
-                BUFFER_SIZE_RECORDING
-        );
 
         decibelsReadList = new ArrayList<>();
     }
 
 
     private void sampleNoise() throws IllegalAccessException{
+        initializeSampler();
         //check if the audioRecord is initialized
         if (audioRecorder.getState() != AudioRecord.STATE_INITIALIZED)
             throw new IllegalAccessException("AudioRecorder has not been initialized");
@@ -115,9 +109,22 @@ public class AcousticNoiseSampler extends Sampler{
             //then we stop the AudioRecorder
             audioRecorder.stop();
             audioRecorder.release();
+            audioRecorder = null;
             recordingThread = null;
             timerThread = null;
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    private void initializeSampler(){
+        isRecording = true;
+        audioRecorder = new AudioRecord (
+                MediaRecorder.AudioSource.MIC,
+                SAMPLE_RATE,
+                AUDIO_CHANNELS,
+                AUDIO_FORMAT,
+                BUFFER_SIZE_RECORDING
+        );
     }
 
 

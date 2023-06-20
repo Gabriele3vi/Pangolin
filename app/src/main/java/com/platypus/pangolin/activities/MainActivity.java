@@ -30,6 +30,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btn_sample_signal;
 
     private Button btn_openMap;
+    private Button btn_openTestMap;
     private TextView tv_out;
 
 
@@ -51,6 +52,7 @@ public class MainActivity extends AppCompatActivity {
         btn_openMap = findViewById(R.id.btn_map);
         tv_out = findViewById(R.id.tv_out);
         timeToSample = findViewById(R.id.tx_millis);
+        btn_openTestMap = findViewById(R.id.btn_testMap);
 
 
         wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
