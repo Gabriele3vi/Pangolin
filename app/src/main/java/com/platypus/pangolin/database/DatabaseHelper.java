@@ -92,9 +92,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         long result = db.insert(TABLE_NAME, null, cv);
 
         if (result == -1)
-            Toast.makeText(context, "Errore durante la scrittura del DB", Toast.LENGTH_SHORT).show();
-        else
-            Toast.makeText(context, "Inserimento avvenuto correttamente", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, "Errore durante la scrittura del DB", Toast.LENGTH_LONG).show();
     }
 
 
@@ -141,7 +139,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 ") ORDER BY timestamp) AS rn " +
                 "    FROM samples" +
                 ") AS subquery " +
-                "WHERE rn <= " + accuracy + " AND type = '" + sampleType+ "' " +
+                "WHERE rn <= " + dateLimit + " AND type = '" + sampleType+ "' " +
                 "GROUP BY gridzone, square, easting_cast, northing_cast";
         return db.rawQuery(query, null);
     }

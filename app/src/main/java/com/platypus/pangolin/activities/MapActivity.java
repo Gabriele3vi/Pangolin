@@ -13,13 +13,18 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.Toast;
+import android.widget.Toolbar;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -27,17 +32,12 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
-import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.Polygon;
-import com.google.android.gms.maps.model.PolygonOptions;
-import com.google.android.gms.maps.model.TileOverlay;
-import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.navigation.NavigationView;
 import com.platypus.pangolin.R;
 import com.platypus.pangolin.database.DatabaseHelper;
 import com.platypus.pangolin.models.Sample;
@@ -47,17 +47,18 @@ import com.platypus.pangolin.samplers.Sampler;
 import com.platypus.pangolin.samplers.SignalStrengthSampler;
 import com.platypus.pangolin.samplers.WifiSampler;
 import com.platypus.pangolin.utils.MGRSTools;
-
-import java.util.ArrayList;
-import java.util.List;
+import com.platypus.pangolin.utils.MapManager;
 
 import mil.nga.mgrs.MGRS;
 import mil.nga.mgrs.grid.GridType;
-import mil.nga.mgrs.tile.MGRSTileProvider;
 
 
 public class MapActivity extends AppCompatActivity implements OnMapReadyCallback{
     //AIzaSyAwhBgttUCkbyHTYGSL49hZFSmESdli4cM api key
+    private DrawerLayout drawerLayout;
+    private NavigationView navigationView;
+    private ActionBarDrawerToggle actionBarDrawerToggle;
+    private Toolbar toolbar;
     private static final int REQUEST_ENABLE_GPS = 1001;
 
     private GoogleMap mMap;
@@ -65,18 +66,14 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     private LocationCallback locationCallback;
     private LocationRequest locationRequest;
     private FusedLocationProviderClient fusedLocationClient;
-
     private FloatingActionButton btn_sample, btn_resetDB;
-
     private Button btn_noise, btn_signal, btn_wifi;
-
+    private Button btn_10m, btn_100m, btn_1000m;
     private SampleType currentSampleType;
-
     private Sampler noiseSampler, signalSampler, wifiSampler, currentSampler;
-    private List<Polygon> polygonList;
-    private MGRSTileProvider tileProvider;
     private GridType mapGridType;
     private DatabaseHelper db;
+    private MapManager mapManager;
 
     private void initializeLocationServices(){
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
@@ -92,11 +89,48 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         };
     }
 
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (actionBarDrawerToggle.onOptionsItemSelected(item)){
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
     @SuppressLint("MissingPermission")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+
+        //codice per gestire il drawer
+        drawerLayout = findViewById(R.id.drawer_layout);
+        navigationView = findViewById(R.id.navigationView);
+        actionBarDrawerToggle = new ActionBarDrawerToggle(this, drawerLayout, R.string.drawer_open, R.string.drawer_close);
+        drawerLayout.addDrawerListener(actionBarDrawerToggle);
+        actionBarDrawerToggle.syncState();
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        navigationView.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
+            @Override
+            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+                switch (item.getItemId()){
+                    case R.id.nav_map:
+                        Toast.makeText(MapActivity.this, "Map", Toast.LENGTH_SHORT).show();
+                        drawerLayout.closeDrawer(GravityCompat.START);
+                        break;
+                    case R.id.nav_data:
+                        Toast.makeText(MapActivity.this, "Samples", Toast.LENGTH_SHORT).show();
+                        drawerLayout.closeDrawer(GravityCompat.START);
+                        break;
+                    case R.id.nav_settings:
+                        Toast.makeText(MapActivity.this, "Settings", Toast.LENGTH_SHORT).show();
+                        drawerLayout.closeDrawer(GravityCompat.START);
+                        break;
+                }
+                return true;
+            }
+        });
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -107,11 +141,13 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         btn_signal = findViewById(R.id.btn_signal);
         btn_wifi = findViewById(R.id.btn_wifi);
         btn_resetDB = findViewById(R.id.btn_resetDB);
+        btn_10m = findViewById(R.id.btn_10m);
+        btn_100m = findViewById(R.id.btn_100m);
+        btn_1000m = findViewById(R.id.btn_1000m);
+
         db = new DatabaseHelper(this);
 
-        mapGridType = GridType.METER;
-
-        polygonList = new ArrayList<>();
+        mapGridType = GridType.HUNDRED_METER;
 
         //di base disabilito il bottone, lo abilito solo se il GPS è attivo e posso campionare
         btn_sample.setEnabled(false);
@@ -121,8 +157,12 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         btn_sample.setOnClickListener(e -> createSample());
         btn_resetDB.setOnClickListener(e -> {
             db.resetDB();
-            Toast.makeText(this, "D", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Database formattato", Toast.LENGTH_SHORT).show();
         });
+
+        btn_10m.setOnClickListener(e -> changeGridType(GridType.TEN_METER));
+        btn_100m.setOnClickListener(e -> changeGridType(GridType.HUNDRED_METER));
+        btn_1000m.setOnClickListener(e -> changeGridType(GridType.KILOMETER));
 
         checkLocationPermissions();
         enableGPS();
@@ -130,43 +170,25 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         initializeLocationServices();
     }
 
-
-    @SuppressLint("MissingPermission")
-    private void setUpCamera(){
-        mMap.setMyLocationEnabled(true);
-        //la prima volta che apri la mappa, ti porta sulla tua posizione
-        fusedLocationClient
-                .getLastLocation()
-                .addOnSuccessListener(this, location -> {
-                    if (location != null) {
-                        LatLng pos = new LatLng(location.getLatitude(), location.getLongitude());
-                        //colorTile(pos, Color.rgb(250,0,0), mapGridType);
-                        CameraPosition cp = new CameraPosition.Builder()
-                                .target(pos)
-                                .zoom(16)
-                                .build();
-                        mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cp));
-                    }
-                });
-    }
-
     @SuppressLint("MissingPermission")
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        mapManager = new MapManager(googleMap, this);
 
         //Disegna la griglia corrispondente
-        tileProvider = MGRSTileProvider.create(this, GridType.GZD, mapGridType);
-        TileOverlay tl = mMap.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+        mapManager.drawGrid(mapGridType);
 
         if (hasGPSPermissios) {
-            setUpCamera();
+            mapManager.setLocationEnabled();
+            mapManager.moveCameraToUserPosition(fusedLocationClient);
             initializeSamplers();
             btn_sample.setEnabled(true);
         }
 
         //Imposta la mappa del noise al primo avvio
         btn_noise.performClick();
+        btn_100m.performClick();
     }
 
     private void updateSampleType(SampleType newType){
@@ -182,7 +204,11 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         loadHeatMap();
     }
 
-
+    private void changeGridType(GridType newGridType){
+        this.mapGridType = newGridType;
+        mapManager.drawGrid(newGridType);
+        loadHeatMap();
+    }
 
     private void initializeSamplers() {
         WifiManager wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
@@ -234,43 +260,22 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         }
     }
 
-    private void colorTile(LatLng coords, int value, GridType gridType){
-        MGRS mgrsCoord = tileProvider.getMGRS(coords);
-        colorTile(mgrsCoord, value ,gridType);
-    }
-
-    private void colorTile(MGRS coords, int color, GridType gridType) {
-        if (mMap == null || tileProvider == null)
-            return;
-
-        PolygonOptions currentTile = new PolygonOptions().addAll(MGRSTools.calculateTileCorners(coords, gridType));
-        Polygon p = mMap.addPolygon(currentTile);
-        p.setStrokeWidth(0);
-        p.setFillColor(color);
-
-        polygonList.add(p);
-    }
-
 
     private void loadHeatMap(){
-        if (mMap == null || currentSampleType == null) {
+        if (currentSampleType == null) {
             Log.e("MAPERROR", "Somthing went wrong");
             Toast.makeText(this, "Something went wrong while maps' loading", Toast.LENGTH_SHORT).show();
             return;
         }
 
         //Toglie dalla mappa i quadranti precedenti
-        for (Polygon p : polygonList){
-            p.remove();
-        }
-        polygonList.clear();
-
+        mapManager.deleteAllPolygons();
 
         //Prendo i dati dal database
         Cursor samplesCursor = db.getAvgConditionByAccuracy(
                 currentSampleType.toString(),
                 mapGridType.getAccuracy(),
-                5
+                100
         );
 
         if (samplesCursor == null){
@@ -278,7 +283,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             return;
         }
 
-        while(samplesCursor.moveToNext()){
+        while (samplesCursor.moveToNext()){
             //prendo la coordinata
             String gridzone = samplesCursor.getString(0);
             String square = samplesCursor.getString(1);
@@ -290,13 +295,12 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             String coordString = gridzone + square + easting + northing;
             MGRS MGRScoord = MGRSTools.fromStringToMGRS(coordString);
             //coloro il quadrato corrispondente
-            colorTile(MGRScoord, getColorByValue(avg_cond), mapGridType);
-            System.out.println(gridzone + square + easting + northing + " COND: " + avg_cond);
+            mapManager.colorTile(MGRScoord, getColorByValue(avg_cond), mapGridType);
+            //System.out.println("Added coord loading map: " + gridzone + square + easting + northing );
         }
 
         samplesCursor.close();
     }
-
     private int getColorByValue(int val){
         if (val == 0)
             return Color.rgb(255,0,0);
@@ -309,7 +313,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     @SuppressLint("MissingPermission")
     private void createSample() {
         if (noiseSampler == null || signalSampler == null || wifiSampler == null) {
-            Toast.makeText(this, "Errore durante il sampling", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Sampler non inizializzato", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -319,22 +323,23 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             Toast.makeText(this, "Errore riscontrato durante il sampling, riprovare", Toast.LENGTH_SHORT).show();
             return;
         }
-
+        String msgToShow = "Value: " + newSample.getValue() + " Condition: " + newSample.getCondition();
+        Toast.makeText(this,msgToShow, Toast.LENGTH_SHORT).show();
         fusedLocationClient
                 .getLastLocation()
                 .addOnSuccessListener(this, location -> {
                     if (location != null) {
                         LatLng cor = new LatLng(location.getLatitude(), location.getLongitude());
-                        MGRS currentLocation = tileProvider.getMGRS(cor);
+                        MGRS currentLocation = mapManager.getMGRS(cor);
+
                         String zone = currentLocation.getZone() + "" + currentLocation.getBand();
                         String square = currentLocation.getColumnRowId();
                         String easting = MGRSTools.getMaxAccuracyEN(currentLocation.getEasting());
                         String northing = MGRSTools.getMaxAccuracyEN(currentLocation.getNorthing());
 
 
-                        Log.d("COORD2", currentLocation.toString());
-                        System.out.println("Original coord: " + currentLocation.toString());
-                        System.out.println(zone + " " + square + " " + easting + " " + northing);
+                        //System.out.println("Added coord: " + currentLocation.toString());
+                        System.out.println("Added coord: "+ zone + " " + square + " " + easting + " " + northing);
                         //Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
 
                         db.addSample(
@@ -346,9 +351,9 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                                 square,
                                 easting,
                                 northing
-                                );
+                        );
                     }
                 });
-        //loadHeatMap();
+        loadHeatMap();
     }
 }

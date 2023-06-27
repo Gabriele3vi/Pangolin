@@ -12,5 +12,6 @@
 
     <style name="Widget.MaterialComponents.MaterialButtonToggleGroup" parent="android:Widget">
         <item name="singleSelection">true</item>
+        <item name="selectionRequired">true</item>
     </style>
 </resources>
