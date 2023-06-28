@@ -40,6 +40,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
 import com.platypus.pangolin.R;
 import com.platypus.pangolin.database.DatabaseHelper;
+import com.platypus.pangolin.databinding.ActivityMapsBinding;
 import com.platypus.pangolin.models.Sample;
 import com.platypus.pangolin.models.SampleType;
 import com.platypus.pangolin.samplers.AcousticNoiseSampler;
@@ -53,14 +54,12 @@ import mil.nga.mgrs.MGRS;
 import mil.nga.mgrs.grid.GridType;
 
 
-public class MapActivity extends AppCompatActivity implements OnMapReadyCallback{
+public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallback{
     //AIzaSyAwhBgttUCkbyHTYGSL49hZFSmESdli4cM api key
-    private DrawerLayout drawerLayout;
-    private NavigationView navigationView;
-    private ActionBarDrawerToggle actionBarDrawerToggle;
-    private Toolbar toolbar;
-    private static final int REQUEST_ENABLE_GPS = 1001;
 
+    ActivityMapsBinding activityMapsBinding;
+
+    private static final int REQUEST_ENABLE_GPS = 1001;
     private GoogleMap mMap;
     private boolean hasGPSPermissios;
     private LocationCallback locationCallback;
@@ -89,47 +88,14 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         };
     }
 
-    @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (actionBarDrawerToggle.onOptionsItemSelected(item)){
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
+
 
     @SuppressLint("MissingPermission")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_maps);
-
-        //codice per gestire il drawer
-        drawerLayout = findViewById(R.id.drawer_layout);
-        navigationView = findViewById(R.id.navigationView);
-        actionBarDrawerToggle = new ActionBarDrawerToggle(this, drawerLayout, R.string.drawer_open, R.string.drawer_close);
-        drawerLayout.addDrawerListener(actionBarDrawerToggle);
-        actionBarDrawerToggle.syncState();
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        navigationView.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
-            @Override
-            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-                switch (item.getItemId()){
-                    case R.id.nav_map:
-                        Toast.makeText(MapActivity.this, "Map", Toast.LENGTH_SHORT).show();
-                        drawerLayout.closeDrawer(GravityCompat.START);
-                        break;
-                    case R.id.nav_data:
-                        Toast.makeText(MapActivity.this, "Samples", Toast.LENGTH_SHORT).show();
-                        drawerLayout.closeDrawer(GravityCompat.START);
-                        break;
-                    case R.id.nav_settings:
-                        Toast.makeText(MapActivity.this, "Settings", Toast.LENGTH_SHORT).show();
-                        drawerLayout.closeDrawer(GravityCompat.START);
-                        break;
-                }
-                return true;
-            }
-        });
+        activityMapsBinding = ActivityMapsBinding.inflate(getLayoutInflater());
+        setContentView(activityMapsBinding.getRoot());
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -168,6 +134,8 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         enableGPS();
         //creo tutti gli oggetti necessari alla localizzazione
         initializeLocationServices();
+
+        setActivityTitle("Map");
     }
 
     @SuppressLint("MissingPermission")

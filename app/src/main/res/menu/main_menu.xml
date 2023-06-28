@@ -4,8 +4,8 @@
         <item android:id="@+id/nav_map"
             android:title="Map"
             android:icon="@drawable/map"/>
-        <item android:id="@+id/nav_data"
-            android:title="Samples"
+        <item android:id="@+id/nav_manageSamples"
+            android:title="Manage samples"
             android:icon="@drawable/data"/>
         <item android:id="@+id/nav_settings"
             android:title="Settings"

@@ -10,6 +10,7 @@
         android:layout_width="125dp"
         android:layout_height="wrap_content"
         android:text="Pangolin"
+        android:textAlignment="center"
         android:textColor="#FFFFFF"
         android:textSize="25sp"
         android:textStyle="bold" />

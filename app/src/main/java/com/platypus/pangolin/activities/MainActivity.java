@@ -28,16 +28,11 @@ public class MainActivity extends AppCompatActivity {
     private Button btn_campiona;
     private Button btn_wifi;
     private Button btn_sample_signal;
-
     private Button btn_openMap;
     private Button btn_openTestMap;
     private TextView tv_out;
-
-
     private EditText timeToSample;
-
     final int RECORD_AUDIO_PERMISSION_CODE = 1;
-
     private WifiManager wifiManager;
     private TelephonyManager telephonyManager;
 
