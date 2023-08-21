@@ -18,6 +18,7 @@ public class WifiSampler extends Sampler{
     public Sample getSample() {
         if (!wifiManager.isWifiEnabled())
             return null;
+
         WifiInfo wifiInfo = wifiManager.getConnectionInfo();
 
         double rssi = wifiInfo.getRssi();

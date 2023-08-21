@@ -11,6 +11,8 @@ import androidx.annotation.Nullable;
 
 import com.platypus.pangolin.models.SampleType;
 
+import java.sql.Timestamp;
+
 public class DatabaseHelper extends SQLiteOpenHelper {
     private Context context;
     private static final String DATABASE_NAME = "Pangolin.db";
@@ -97,15 +99,76 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 
 
+
     @Override
     public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
 
     }
 
+    public Cursor getSamplesByType(String type){
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        String query = "select * " +
+                "from Samples " +
+                "where type = '" + type + "' " +
+                " order by timestamp desc";
+
+        return db.rawQuery(query, null);
+
+    }
+
+    public Cursor getMissingSampleTypes
+            (int accuracy,
+             String gridzoneInput,
+             String squareInput,
+             String eastingInput,
+             String northingInput)
+    {
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT type_enum " +
+                "FROM (SELECT 'Signal' AS type_enum " +
+                "UNION " +
+                "SELECT 'Wifi' " +
+                "UNION " +
+                "SELECT 'Noise') AS type_list " +
+                "WHERE type_enum NOT IN (" +
+                "SELECT  DISTINCT type " +
+                "from Samples " +
+                "where date(timestamp) =  date('now') " +
+                "and  gridzone = '" +  gridzoneInput + "' "+
+                "and square = '" + squareInput  +  "' " +
+                "and substr(easting, 1," + accuracy + ") = substr('" +  eastingInput + "'"+", 1," + accuracy + ") " +
+                "and  substr(northing, 1," + accuracy + ") = substr('" +  northingInput + "'"+", 1, " + accuracy + "));";
+        return db.rawQuery(query, null);
+    }
+
+
     public Cursor getSamplesByType(SampleType type){
         SQLiteDatabase db = this.getReadableDatabase();
         String query = "SELECT date, value, condition, coordinate FROM " + TABLE_NAME + " WHERE type = '" + type.toString() + "'";
         return db.rawQuery(query, null);
+    }
+
+public Cursor getSamplesByCoordAndAccuracyAndType
+          (String gridzoneInput,
+           String squareInput,
+           String eastingInput,
+           String northingInput,
+           String type,
+           String accuracy)
+        {
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT timestamp, value, condition " +
+                "FROM Samples " +
+                "where type = ? " +
+                "and  gridzone = ? " +
+                "and square = ? "+
+                "and substr(easting, 1, ?) = substr(?, 1, ?) " +
+                "and  substr(northing, 1, ?) = substr(?, 1, ?) " +
+                "order by timestamp;";
+        String [] args =
+                {type, gridzoneInput, squareInput, accuracy, eastingInput, accuracy, accuracy, northingInput, accuracy};
+        return db.rawQuery(query, args);
     }
 
     /*
@@ -147,6 +210,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public void resetDB(){
         SQLiteDatabase db = this.getWritableDatabase();
         db.delete(TABLE_NAME, null, null);
+    }
 
+    public int deleteSample (String timestamp, String type){
+        SQLiteDatabase db = this.getWritableDatabase();
+        String whereClause = "timestamp = ? and type = ?";
+        String [] whereArgs = {timestamp, type};
+        return db.delete(TABLE_NAME, whereClause, whereArgs);
     }
 }

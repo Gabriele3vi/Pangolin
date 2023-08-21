@@ -3,6 +3,7 @@ package com.platypus.pangolin.utils;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -14,6 +15,8 @@ import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.TileOverlay;
 import com.google.android.gms.maps.model.TileOverlayOptions;
+import com.platypus.pangolin.activities.TileInfoActivity;
+import com.platypus.pangolin.models.SampleType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +31,6 @@ public class MapManager {
     private List<TileOverlay> tilesSchemas;
     private MGRSTileProvider tileProvider;
     private Context context;
-
     private int zoom;
 
     public MapManager(GoogleMap map, Context context) {
@@ -40,8 +42,11 @@ public class MapManager {
         map.setOnPolygonClickListener(polygon -> {
             // Perform the desired action when the polygon is clicked
             // For example, show an info window or change the polygon color
-            String coord = (String) polygon.getTag();
-            System.out.println(coord);
+            String data = (String) polygon.getTag();
+            Intent i = new Intent(context, TileInfoActivity.class);
+            i.putExtra("Data", data);
+            context.startActivity(i);
+            System.out.println(data);
         });
     }
 
@@ -90,7 +95,7 @@ public class MapManager {
                 });
     }
 
-    public void colorTile(MGRS coords, int color, GridType gridType) {
+    public void colorTile(MGRS coords, int color, GridType gridType, SampleType sampleType) {
         if (map == null)
             return;
 
@@ -99,7 +104,9 @@ public class MapManager {
         p.setStrokeWidth(0);
         p.setFillColor(color);
         p.setClickable(true);
-        p.setTag(coords.toString());
+
+        String tag = coords.toString() + "_" + sampleType.toString() + "_" + gridType.getAccuracy();
+        p.setTag(tag);
 
         polygonList.add(p);
     }

@@ -1,12 +1,13 @@
 package com.platypus.pangolin.models;
 
+import java.io.Serializable;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 
-public class Sample implements Comparable<Sample>{
+public class Sample implements Comparable<Sample>, Serializable {
     //TODO ricordarsi che sample deve avere anche latitudine e longitudine del sample
     //vediamo più avanti come omplementare la cosa
 

@@ -1,5 +1,9 @@
 package com.platypus.pangolin.samplers;
 
+import static java.lang.Double.NEGATIVE_INFINITY;
+import static java.lang.Double.NaN;
+import static java.lang.Double.POSITIVE_INFINITY;
+
 import android.annotation.SuppressLint;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
@@ -11,8 +15,9 @@ import com.platypus.pangolin.models.SignalCondition;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class AcousticNoiseSampler extends Sampler{
+public class AcousticNoiseSampler extends Sampler {
     private AudioRecord audioRecorder;
     private final int SAMPLE_RATE = 16000;
     private final int AUDIO_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
@@ -25,35 +30,39 @@ public class AcousticNoiseSampler extends Sampler{
             AUDIO_FORMAT
     );
 
-    private boolean isRecording;
+    private final AtomicBoolean isRecording = new AtomicBoolean(false);
 
     private Thread recordingThread;
     private Thread timerThread;
 
     private List<Double> decibelsReadList;
+    private double decibelsRead;
     private int samplingTimeMillis;
 
     @SuppressLint("MissingPermission")
     public AcousticNoiseSampler(int samplingTimeMillis) {
         this.samplingTimeMillis = samplingTimeMillis >= 500 ? samplingTimeMillis : 1000;
-
         decibelsReadList = new ArrayList<>();
+        decibelsRead = 0;
     }
 
 
-    private void sampleNoise() throws IllegalAccessException{
+    private synchronized void sampleNoise() throws IllegalAccessException{
         initializeSampler();
         //check if the audioRecord is initialized
         if (audioRecorder.getState() != AudioRecord.STATE_INITIALIZED)
             throw new IllegalAccessException("AudioRecorder has not been initialized");
 
-
         audioRecorder.startRecording();
-        isRecording = true;
+        /*
+        isRecording.set(true);
 
         //create and start the thread to read the data from the mic
+
         recordingThread = new Thread(this::readData);
         recordingThread.start();
+
+
 
         //create and start the timer thread
         timerThread = new Thread(() -> {
@@ -73,39 +82,51 @@ public class AcousticNoiseSampler extends Sampler{
             recordingThread.join();
         } catch (InterruptedException e) {
             System.err.println("error during joining the thread");
-        }
+        } */
+        readData2();
+        stopReading();
     }
 
     private void readData(){
-        while(isRecording){
+        while(isRecording.get() && audioRecorder != null){
             short[] buffer = new short[BUFFER_SIZE_RECORDING];
             int byteRead = audioRecorder.read(buffer, 0, buffer.length);
-            double decibelRead = getDecibelFromBuffer(buffer, byteRead);
-            if (decibelRead != Double.NEGATIVE_INFINITY) {
-                decibelsReadList.add(decibelRead);
+            double db = getDecibelFromBuffer(buffer, byteRead);
+            if (db != Double.NEGATIVE_INFINITY) {
+                decibelsReadList.add(decibelsRead);
             } else {
-                System.out.println("beccaato un infinity");
+                System.out.println("beccato un infinity");
             }
+        }
+    }
+
+    private void readData2(){
+        short[] buffer = new short[BUFFER_SIZE_RECORDING];
+        int byteRead = audioRecorder.read(buffer, 0, buffer.length);
+        double db = getDecibelFromBuffer(buffer, byteRead);
+        if (db != Double.NEGATIVE_INFINITY) {
+            decibelsRead = db;
+        } else {
+            System.out.println("beccato un infinity");
         }
     }
 
     private double getDecibelFromBuffer(short[] buffer, int byteRead){
         //get the maximum value of the buffer to clean the data
-        int max = buffer[0];
-        for(int i = 0; i < byteRead; i++) {
-            int current = Math.abs(buffer[i]);
-            if (current > max)
-                max = current;
+        int mean = 0;
+        for (int i : buffer){
+            int w = Math.abs(i);
+            mean += w;
         }
-
+        mean = mean / buffer.length;
         //return the max value in DB
-        return 20 * Math.log10(max / 32767.0);
+        return 20 * Math.log10(mean / 32767.0);
     }
 
     private void stopReading(){
         if(audioRecorder != null) {
             //first, we must stop the reading thread, so we set isRecording to false
-            isRecording = false;
+            isRecording.set(false);
             //then we stop the AudioRecorder
             audioRecorder.stop();
             audioRecorder.release();
@@ -117,7 +138,7 @@ public class AcousticNoiseSampler extends Sampler{
 
     @SuppressLint("MissingPermission")
     private void initializeSampler(){
-        isRecording = true;
+        isRecording.set(true);
         audioRecorder = new AudioRecord (
                 MediaRecorder.AudioSource.MIC,
                 SAMPLE_RATE,
@@ -126,22 +147,13 @@ public class AcousticNoiseSampler extends Sampler{
                 BUFFER_SIZE_RECORDING
         );
     }
-
-
     @Override
     public Sample getSample() {
         try {
             sampleNoise();
+            double db = decibelsRead;
 
-            double sum = 0;
-            for (double db : decibelsReadList)
-                sum += db;
-
-            double db = sum / decibelsReadList.size();
-
-            decibelsReadList.clear();
-
-            if (db >= -10)
+            if (db >= -35)
                 return new Sample(SampleType.Noise, SignalCondition.POOR, db);
             else if (db >= -50)
                 return new Sample(SampleType.Noise, SignalCondition.GOOD, db);

@@ -2,29 +2,41 @@ package com.platypus.pangolin.activities;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.location.LocationManager;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.DocumentsContract;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 import android.widget.Toolbar;
 
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.preference.PreferenceManager;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -38,32 +50,37 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.platypus.pangolin.R;
 import com.platypus.pangolin.database.DatabaseHelper;
 import com.platypus.pangolin.databinding.ActivityMapsBinding;
+import com.platypus.pangolin.models.LocalizedSample;
 import com.platypus.pangolin.models.Sample;
 import com.platypus.pangolin.models.SampleType;
 import com.platypus.pangolin.samplers.AcousticNoiseSampler;
 import com.platypus.pangolin.samplers.Sampler;
 import com.platypus.pangolin.samplers.SignalStrengthSampler;
 import com.platypus.pangolin.samplers.WifiSampler;
+import com.platypus.pangolin.services.BackgroundSamplerService;
 import com.platypus.pangolin.utils.MGRSTools;
 import com.platypus.pangolin.utils.MapManager;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import mil.nga.mgrs.MGRS;
 import mil.nga.mgrs.grid.GridType;
 
 
-public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallback{
+public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallback {
     //AIzaSyAwhBgttUCkbyHTYGSL49hZFSmESdli4cM api key
-
-    ActivityMapsBinding activityMapsBinding;
-
-    private static final int REQUEST_ENABLE_GPS = 1001;
-    private GoogleMap mMap;
-    private boolean hasGPSPermissios;
-    private LocationCallback locationCallback;
-    private LocationRequest locationRequest;
+    private static final int REQUEST_MICROPHONE = 1;
+    private static final int REQUEST_LOCATION = 2;
+    private static final int REQUEST_ENABLE_GPS = 3;
+    private static String SERVICE_CHANNEL_ID, BASIC_CHANNEL_ID;
     private FusedLocationProviderClient fusedLocationClient;
     private FloatingActionButton btn_sample, btn_resetDB;
     private Button btn_noise, btn_signal, btn_wifi;
@@ -73,34 +90,48 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
     private GridType mapGridType;
     private DatabaseHelper db;
     private MapManager mapManager;
+    private SharedPreferences defaultSharedPreferences;
+    private String defaultSamplerKey;
+    private String defaultGranularityKey;
+    private String defaultSampler;
+    private String defaultGranularity;
+    private boolean backgroundSamplingOn;
+    private FirebaseFirestore firebaseDB;
+    private CollectionReference collectionReference;
+    private boolean micPermissions, locationPermissions, GPSEnabled;
 
-    private void initializeLocationServices(){
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        locationRequest = new LocationRequest
-                .Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
-                .setMinUpdateIntervalMillis(500)
-                .build();
-        locationCallback = new LocationCallback() {
-            @Override
-            public void onLocationResult(@NonNull LocationResult locationResult) {
-                super.onLocationResult(locationResult);
-            }
-        };
+    private void initializeSamplers() {
+        WifiManager wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
+        TelephonyManager telephonyManager = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
+
+        this.noiseSampler = new AcousticNoiseSampler(500);
+        this.signalSampler = new SignalStrengthSampler(telephonyManager);
+        this.wifiSampler = new WifiSampler(wifiManager);
+
+        currentSampler = wifiSampler;
     }
-
-
 
     @SuppressLint("MissingPermission")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        activityMapsBinding = ActivityMapsBinding.inflate(getLayoutInflater());
+        micPermissions = false;
+        locationPermissions = false;
+        GPSEnabled = false;
+        initializeSamplers();
+
+        ActivityMapsBinding activityMapsBinding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(activityMapsBinding.getRoot());
+        SERVICE_CHANNEL_ID = getString(R.string.notification_channel_id_background_service);
+        BASIC_CHANNEL_ID = "basic";
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
+
         mapFragment.getMapAsync(this);
+
+        createNotificationChannel();
 
         btn_sample = findViewById(R.id.btn_sample);
         btn_noise = findViewById(R.id.btn_noise);
@@ -116,13 +147,27 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         mapGridType = GridType.HUNDRED_METER;
 
         //di base disabilito il bottone, lo abilito solo se il GPS è attivo e posso campionare
-        btn_sample.setEnabled(false);
-        btn_noise.setOnClickListener(e -> updateSampleType(SampleType.Noise));
+        btn_noise.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                askForPermissions(Manifest.permission.RECORD_AUDIO, REQUEST_MICROPHONE);
+                updateSampleType(SampleType.Noise);
+            }
+        });
         btn_signal.setOnClickListener(e -> updateSampleType(SampleType.Signal));
         btn_wifi.setOnClickListener(e -> updateSampleType(SampleType.Wifi));
         btn_sample.setOnClickListener(e -> createSample());
+        btn_sample.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                askForPermissions(Manifest.permission.ACCESS_FINE_LOCATION, REQUEST_LOCATION);
+                if (GPSEnabled)
+                    createSample();
+            }
+        });
         btn_resetDB.setOnClickListener(e -> {
             db.resetDB();
+            loadHeatMap();
             Toast.makeText(this, "Database formattato", Toast.LENGTH_SHORT).show();
         });
 
@@ -130,33 +175,128 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         btn_100m.setOnClickListener(e -> changeGridType(GridType.HUNDRED_METER));
         btn_1000m.setOnClickListener(e -> changeGridType(GridType.KILOMETER));
 
-        checkLocationPermissions();
-        enableGPS();
-        //creo tutti gli oggetti necessari alla localizzazione
-        initializeLocationServices();
+        //if needed, ask for permissions
 
         setActivityTitle("Map");
+        askForPermissions(Manifest.permission.ACCESS_FINE_LOCATION, REQUEST_LOCATION);
+
+
+        defaultSharedPreferences = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
+        defaultSamplerKey = getString(R.string.settings_samplers_key);
+        defaultGranularityKey = getString(R.string.settings_granularity_key);
+        String defaultBackgroundSamplingKey = getString(R.string.settings_background_key);
+
+        defaultSampler =  defaultSharedPreferences.getString(defaultSamplerKey, "null");
+        defaultGranularity =  defaultSharedPreferences.getString(defaultGranularityKey, "null");
+        backgroundSamplingOn = defaultSharedPreferences.getBoolean(defaultBackgroundSamplingKey, false);
+
+        if (locationPermissions) {
+            enableGPS();
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        }
+
+        //firebase Init
+        firebaseDB = FirebaseFirestore.getInstance();
+
+    }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        stopService();
+        loadHeatMap();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        if (backgroundSamplingOn)
+            startService();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        if (backgroundSamplingOn)
+            stopService();
+    }
+
+    private void createNotificationChannel(){
+        NotificationChannel serviceChannel = new NotificationChannel(
+                SERVICE_CHANNEL_ID,
+                "Pangolin background service",
+                NotificationManager.IMPORTANCE_LOW
+        );
+
+        NotificationChannel basicNotification = new NotificationChannel(
+                BASIC_CHANNEL_ID,
+                "Pangolin basic notification",
+                NotificationManager.IMPORTANCE_DEFAULT
+        );
+
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        nm.createNotificationChannel(serviceChannel);
+        nm.createNotificationChannel(basicNotification);
     }
 
     @SuppressLint("MissingPermission")
     @Override
     public void onMapReady(GoogleMap googleMap) {
-        mMap = googleMap;
         mapManager = new MapManager(googleMap, this);
 
         //Disegna la griglia corrispondente
         mapManager.drawGrid(mapGridType);
 
-        if (hasGPSPermissios) {
+        if (GPSEnabled) {
             mapManager.setLocationEnabled();
             mapManager.moveCameraToUserPosition(fusedLocationClient);
-            initializeSamplers();
             btn_sample.setEnabled(true);
         }
 
         //Imposta la mappa del noise al primo avvio
-        btn_noise.performClick();
-        btn_100m.performClick();
+        setSampler(defaultSampler);
+        setGranularity(defaultGranularity);
+    }
+    private void setSampler(String s){
+        switch (s){
+            case "noise":
+                btn_noise.performClick();
+                break;
+            case "wifi":
+                btn_wifi.performClick();
+                break;
+            case "signal":
+                btn_signal.performClick();
+                break;
+            default:
+                btn_noise.performClick();
+                SharedPreferences.Editor editor = defaultSharedPreferences.edit();
+                editor.putString(defaultSamplerKey, "noise");
+                editor.apply();
+                break;
+        }
+    }
+
+    private void setGranularity(String g){
+        switch (g){
+            case "10":
+                btn_10m.performClick();
+                break;
+            case "100":
+                btn_100m.performClick();
+                break;
+            case "1000":
+                btn_1000m.performClick();
+                break;
+            default:
+                btn_100m.performClick();
+                SharedPreferences.Editor editor = defaultSharedPreferences.edit();
+                editor.putString(defaultGranularityKey, "100");
+                editor.apply();
+                break;
+        }
     }
 
     private void updateSampleType(SampleType newType){
@@ -178,46 +318,58 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         loadHeatMap();
     }
 
-    private void initializeSamplers() {
-        WifiManager wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
-        TelephonyManager telephonyManager = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
 
-        this.noiseSampler = new AcousticNoiseSampler(500);
-        this.signalSampler = new SignalStrengthSampler(telephonyManager);
-        this.wifiSampler = new WifiSampler(wifiManager);
-
-        currentSampler = wifiSampler;
-    }
-
-
-    private void checkLocationPermissions(){
-        hasGPSPermissios = true;
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            hasGPSPermissios = false;
-            ActivityCompat.requestPermissions(
-                    MapActivity.this,
-                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                    1001
-            );
+    private void askForPermissions(String permissions, int requestCode){
+        if (ActivityCompat.checkSelfPermission(this, permissions) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[] {permissions},
+                    requestCode);
+            return;
         }
+
+        if (requestCode == REQUEST_MICROPHONE)
+            micPermissions = true;
+        else if (requestCode == REQUEST_LOCATION) {
+            locationPermissions = true;
+            GPSEnabled = true;
+        }
+
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if(requestCode == 1001) {
+        if (requestCode == REQUEST_MICROPHONE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                hasGPSPermissios = true;
+                micPermissions = true;
+                btn_noise.setEnabled(true);
+                Toast.makeText(this, "Mic permissions given", Toast.LENGTH_SHORT).show();
+            } else {
+                micPermissions = false;
+                btn_noise.setEnabled(false);
+            }
+        }
+
+        if (requestCode == REQUEST_LOCATION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                locationPermissions = true;
+                enableGPS();
+                Toast.makeText(this, "Localization permissions given", Toast.LENGTH_SHORT).show();
+            } else {
+                locationPermissions = false;
+                btn_sample.setEnabled(false);
             }
         }
 
         if (requestCode == REQUEST_ENABLE_GPS) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                hasGPSPermissios = true;
-            } else {
-                hasGPSPermissios = false;
+                GPSEnabled = true;
+                btn_sample.setEnabled(true);
+                Toast.makeText(this, "GPS enabled", Toast.LENGTH_SHORT).show();
             }
         }
+
+
     }
 
     private void enableGPS() {
@@ -226,10 +378,13 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
             Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
             startActivityForResult(intent, REQUEST_ENABLE_GPS);
         }
+        GPSEnabled = true;
     }
 
 
     private void loadHeatMap(){
+        /*
+
         if (currentSampleType == null) {
             Log.e("MAPERROR", "Somthing went wrong");
             Toast.makeText(this, "Something went wrong while maps' loading", Toast.LENGTH_SHORT).show();
@@ -263,11 +418,63 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
             String coordString = gridzone + square + easting + northing;
             MGRS MGRScoord = MGRSTools.fromStringToMGRS(coordString);
             //coloro il quadrato corrispondente
-            mapManager.colorTile(MGRScoord, getColorByValue(avg_cond), mapGridType);
+            mapManager.colorTile(MGRScoord, getColorByValue(avg_cond), mapGridType, currentSampleType);
             //System.out.println("Added coord loading map: " + gridzone + square + easting + northing );
         }
 
         samplesCursor.close();
+        */
+
+        List<LocalizedSample> list = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
+        drawHeaMap(list);
+
+    }
+    private List<LocalizedSample> getLocalSamples(String sampleType, int accuracy, int dateLimit){
+        List<LocalizedSample> localizedSampleList = new ArrayList<>();
+        Cursor samplesCursor = db.getAvgConditionByAccuracy(sampleType, accuracy, dateLimit);
+
+        while (samplesCursor.moveToNext()){
+            //prendo la coordinata
+            String gridzone = samplesCursor.getString(0);
+            String square = samplesCursor.getString(1);
+            String easting = samplesCursor.getString(2);
+            String northing = samplesCursor.getString(3);
+            //prendo la condizione
+            int avg_cond = Math.round(samplesCursor.getFloat(4));
+
+            String coordString = gridzone + square + easting + northing;
+            MGRS MGRScoord = MGRSTools.fromStringToMGRS(coordString);
+            Sample s = new Sample(SampleType.valueOf(sampleType), avg_cond, 0);
+            LocalizedSample ls = new LocalizedSample(s, coordString, null);
+            localizedSampleList.add(ls);
+            System.out.println("Reading " + coordString);
+        }
+
+        samplesCursor.close();
+
+        return localizedSampleList;
+    }
+
+    private void drawHeaMap(List<LocalizedSample> sampleList){
+        if (currentSampleType == null) {
+            Toast.makeText(this, "Something went wrong while maps' loading", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        mapManager.deleteAllPolygons();
+
+        for (LocalizedSample ls : sampleList){
+            System.out.println("Drawing: " + ls.getMgrsCoords());
+            MGRS mgrsCoord = MGRSTools.fromStringToMGRS(ls.getMgrsCoords());
+            int condition = ls.getBasicSample().getCondition();
+            System.out.println(condition);
+            System.out.println(mgrsCoord);
+            System.out.println(mapGridType);
+            System.out.println(currentSampleType);
+
+
+            mapManager.colorTile(mgrsCoord, getColorByValue(condition), mapGridType, currentSampleType);
+        }
     }
     private int getColorByValue(int val){
         if (val == 0)
@@ -305,7 +512,6 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
                         String easting = MGRSTools.getMaxAccuracyEN(currentLocation.getEasting());
                         String northing = MGRSTools.getMaxAccuracyEN(currentLocation.getNorthing());
 
-
                         //System.out.println("Added coord: " + currentLocation.toString());
                         System.out.println("Added coord: "+ zone + " " + square + " " + easting + " " + northing);
                         //Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
@@ -320,8 +526,20 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
                                 easting,
                                 northing
                         );
+                        loadHeatMap();
                     }
                 });
-        loadHeatMap();
     }
+
+    private void startService(){
+        Intent serviceIntent = new Intent(this, BackgroundSamplerService.class);
+        startService(serviceIntent);
+    }
+
+    private void stopService(){
+        Intent serviceIntent = new Intent(this, BackgroundSamplerService.class);
+        stopService(serviceIntent);
+    }
+
+
 }

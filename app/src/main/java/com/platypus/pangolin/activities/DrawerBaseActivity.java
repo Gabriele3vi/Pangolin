@@ -1,6 +1,7 @@
 package com.platypus.pangolin.activities;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.GravityCompat;
@@ -24,7 +25,6 @@ public class DrawerBaseActivity extends AppCompatActivity implements NavigationV
     private FrameLayout container;
     private ActionBarDrawerToggle actionBarDrawerToggle;
     private Toolbar toolbar;
-
 
     @Override
     public void setContentView(View view) {
@@ -77,5 +77,11 @@ public class DrawerBaseActivity extends AppCompatActivity implements NavigationV
     protected void setActivityTitle(String title){
         if (getSupportActionBar() != null)
             getSupportActionBar().setTitle(title);
+    }
+
+    @Override
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        System.out.println("Base Activity Created");
     }
 }

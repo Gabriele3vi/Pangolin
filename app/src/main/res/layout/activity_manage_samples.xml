@@ -7,15 +7,45 @@
     tools:context=".activities.ManageSamplesActivity">
 
     <TextView
-        android:layout_width="201dp"
-        android:layout_height="123dp"
-        android:text="Manage samples"
-        android:textSize="36dp"
-        android:textAlignment="center"
+        android:id="@+id/textView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/selectSampleType"
+        android:textSize="15sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.126" />
+        app:layout_constraintVertical_bias="0.022"
+        android:layout_marginHorizontal="10dp"
+        android:layout_marginVertical="10dp"
+        android:textStyle="bold"
+        app:layout_constraintHorizontal_bias="0"/>
+
+    <Spinner
+        android:id="@+id/spinner2"
+        android:layout_width="387dp"
+        android:layout_height="36dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textView"
+        app:layout_constraintVertical_bias="0.001"
+        android:layout_marginVertical="10dp"
+        android:paddingStart="0dp"
+        android:layout_marginHorizontal="10dp"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/sampleList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/spinner2"
+        android:layout_marginBottom="10dp"
+        app:layout_constraintVertical_bias="0.025" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
