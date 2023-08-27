@@ -5,15 +5,19 @@ import static java.lang.Double.NaN;
 import static java.lang.Double.POSITIVE_INFINITY;
 
 import android.annotation.SuppressLint;
+import android.app.ZygotePreload;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+
+import androidx.dynamicanimation.animation.SpringAnimation;
 
 import com.platypus.pangolin.models.Sample;
 import com.platypus.pangolin.models.SampleType;
 import com.platypus.pangolin.models.SignalCondition;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -54,15 +58,13 @@ public class AcousticNoiseSampler extends Sampler {
             throw new IllegalAccessException("AudioRecorder has not been initialized");
 
         audioRecorder.startRecording();
-        /*
+
         isRecording.set(true);
 
         //create and start the thread to read the data from the mic
 
         recordingThread = new Thread(this::readData);
         recordingThread.start();
-
-
 
         //create and start the timer thread
         timerThread = new Thread(() -> {
@@ -82,18 +84,20 @@ public class AcousticNoiseSampler extends Sampler {
             recordingThread.join();
         } catch (InterruptedException e) {
             System.err.println("error during joining the thread");
-        } */
-        readData2();
-        stopReading();
+        }
+        //readData2();
+        //stopReading();
     }
 
     private void readData(){
         while(isRecording.get() && audioRecorder != null){
             short[] buffer = new short[BUFFER_SIZE_RECORDING];
             int byteRead = audioRecorder.read(buffer, 0, buffer.length);
+            System.out.println(Arrays.toString(buffer));
             double db = getDecibelFromBuffer(buffer, byteRead);
             if (db != Double.NEGATIVE_INFINITY) {
-                decibelsReadList.add(decibelsRead);
+                decibelsReadList.add(db);
+                System.out.println(db);
             } else {
                 System.out.println("beccato un infinity");
             }
@@ -113,14 +117,14 @@ public class AcousticNoiseSampler extends Sampler {
 
     private double getDecibelFromBuffer(short[] buffer, int byteRead){
         //get the maximum value of the buffer to clean the data
-        int mean = 0;
+        int max = 0;
         for (int i : buffer){
             int w = Math.abs(i);
-            mean += w;
+            if (w > max)
+                max = w;
         }
-        mean = mean / buffer.length;
         //return the max value in DB
-        return 20 * Math.log10(mean / 32767.0);
+        return 20 * Math.log10(max / 32767.0);
     }
 
     private void stopReading(){
@@ -151,11 +155,19 @@ public class AcousticNoiseSampler extends Sampler {
     public Sample getSample() {
         try {
             sampleNoise();
-            double db = decibelsRead;
 
-            if (db >= -35)
+            double mean = 0;
+
+            for (double f : decibelsReadList) {
+                System.out.println("Value stored: " + f);
+                mean += f;
+            }
+
+            double db = mean / decibelsReadList.size();
+
+            if (db >= -10)
                 return new Sample(SampleType.Noise, SignalCondition.POOR, db);
-            else if (db >= -50)
+            else if (db >= -30)
                 return new Sample(SampleType.Noise, SignalCondition.GOOD, db);
             else
                 return new Sample(SampleType.Noise, SignalCondition.EXCELLENT, db);

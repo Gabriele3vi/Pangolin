@@ -67,12 +67,15 @@ public class TileInfoActivity extends AppCompatActivity {
         XAxis xAxis = lineChart.getXAxis();
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
         xAxis.setValueFormatter(new IndexAxisValueFormatter(xValues));
-        xAxis.setLabelCount(xValues.size());
+        xAxis.setLabelCount(Math.min(xValues.size(), 10));
         xAxis.setGranularity(1f);
 
         YAxis yAxis = lineChart.getAxisLeft();
-        yAxis.setAxisMinimum(getMin(yValues) -20);
-        yAxis.setAxisMaximum(getMax(yValues) + 20);
+        float axisMinimum = (float) (getMin(yValues) - 0.1 * getMin(yValues));
+        yAxis.setAxisMinimum(axisMinimum);
+
+        float axisMaximum = (float) (getMax(yValues) + 0.1 * getMax(yValues));
+        yAxis.setAxisMaximum(axisMaximum);
         yAxis.setAxisLineWidth(2f);
         yAxis.setAxisLineColor(Color.RED);
         yAxis.setLabelCount(10);

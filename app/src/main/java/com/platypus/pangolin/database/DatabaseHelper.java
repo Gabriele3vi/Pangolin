@@ -157,7 +157,7 @@ public Cursor getSamplesByCoordAndAccuracyAndType
            String type,
            String accuracy)
         {
-        SQLiteDatabase db = this.getReadableDatabase();
+        SQLiteDatabase db = getReadableDatabase();
         String query = "SELECT timestamp, value, condition " +
                 "FROM Samples " +
                 "where type = ? " +
