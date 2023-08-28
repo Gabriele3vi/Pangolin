@@ -12,12 +12,14 @@ import androidx.annotation.Nullable;
 import com.platypus.pangolin.models.SampleType;
 
 import java.sql.Timestamp;
+import java.util.UUID;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
     private Context context;
     private static final String DATABASE_NAME = "Pangolin.db";
     private static final int DATABASE_VERSION = 1;
     private static final String TABLE_NAME = "Samples";
+    private static final String GLOBAL_TABLE_NAME = "GlobalSamples";
 
     private static final String COLUMN_TIMESTAMP = "timestamp";
     private static final String COLUMN_TYPE = "type";
@@ -28,6 +30,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String COLUMN_SQUARE = "square";
     private static final String COLUMN_EASTING = "easting";
     private static final String COLUMN_NORTHING = "northing";
+    private static final String COLUMN_ID = "ID";
+    private static final String COLUMN_SAMPLE_ORIGIN = "ORIGIN";
+    private static final String COLUMN_SAMPLE_STATE = "STATE";
+
 
 
     public DatabaseHelper(@Nullable Context context) {
@@ -53,7 +59,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        String query = "CREATE TABLE " +  TABLE_NAME +
+        String localSamplesTablequery = "CREATE TABLE " +  TABLE_NAME +
                 " ("  +  COLUMN_TYPE +  " VARCHAR(30) NOT NULL," +
                 COLUMN_TIMESTAMP + " TIMESTAMP NOT NULL," +
                 COLUMN_VALUE + " REAL NOT NULL," +
@@ -61,12 +67,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COLUMN_GRIDZONE +  " VARCHAR(3) NOT NULL," +
                 COLUMN_SQUARE +  " VARCHAR(2) NOT NULL," +
                 COLUMN_EASTING +  " VARCHAR(5) NOT NULL," +
-                COLUMN_NORTHING +  " VARCHAR(5) NOT NULL," +
-                " primary key("+ COLUMN_TIMESTAMP + "," + COLUMN_TYPE + ")" +
+                COLUMN_NORTHING +  " VARCHAR(5) NOT NULL, " +
+                COLUMN_ID + " VARCHAR(60) primary key, "+
+                COLUMN_SAMPLE_ORIGIN + " VARCHAR(5) NOT NULL, " +
+                COLUMN_SAMPLE_STATE + " VARCHAR(30) NOT NULL DEFAULT 'LOCAL' " +
                 ");";
 
-        db.execSQL(query);
-
+        db.execSQL(localSamplesTablequery);
     }
 
     public void addSample(
@@ -81,7 +88,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues cv = new ContentValues();
-
         cv.put(COLUMN_TYPE, type);
         cv.put(COLUMN_TIMESTAMP, timeStamp);
         cv.put(COLUMN_VALUE, value);
@@ -90,14 +96,46 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cv.put(COLUMN_SQUARE, square);
         cv.put(COLUMN_EASTING, easting);
         cv.put(COLUMN_NORTHING, northing);
+        cv.put(COLUMN_ID, UUID.randomUUID().toString());
+        cv.put(COLUMN_SAMPLE_ORIGIN, "L");
 
         long result = db.insert(TABLE_NAME, null, cv);
 
         if (result == -1)
-            Toast.makeText(context, "Errore durante la scrittura del DB", Toast.LENGTH_LONG).show();
+            System.out.println("Errore durante la scrittura nel DB");
     }
 
+    public void addSampleFromFirebase(
+            String type,
+            String timeStamp,
+            double value,
+            int condition,
+            String gridzone,
+            String square,
+            String easting,
+            String northing,
+            String ID,
+            String sampleOrigin)
+    {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues cv = new ContentValues();
+        cv.put(COLUMN_TYPE, type);
+        cv.put(COLUMN_TIMESTAMP, timeStamp);
+        cv.put(COLUMN_VALUE, value);
+        cv.put(COLUMN_CONDITION, condition);
+        cv.put(COLUMN_GRIDZONE, gridzone);
+        cv.put(COLUMN_SQUARE, square);
+        cv.put(COLUMN_EASTING, easting);
+        cv.put(COLUMN_NORTHING, northing);
+        cv.put(COLUMN_ID, ID);
+        cv.put(COLUMN_SAMPLE_ORIGIN, sampleOrigin);
+        cv.put(COLUMN_SAMPLE_STATE, "SYNCH");
 
+        long result = db.insert(TABLE_NAME, null, cv);
+
+        if (result == -1)
+            System.out.println("Errore durante la scrittura del DB");
+    }
 
 
     @Override
@@ -114,7 +152,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 " order by timestamp desc";
 
         return db.rawQuery(query, null);
-
     }
 
     public Cursor getMissingSampleTypes
@@ -122,7 +159,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
              String gridzoneInput,
              String squareInput,
              String eastingInput,
-             String northingInput)
+             String northingInput
+            )
     {
         SQLiteDatabase db = this.getReadableDatabase();
         String query = "SELECT type_enum " +
@@ -135,6 +173,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "SELECT  DISTINCT type " +
                 "from Samples " +
                 "where date(timestamp) =  date('now') " +
+                "and origin = 'L' " +
                 "and  gridzone = '" +  gridzoneInput + "' "+
                 "and square = '" + squareInput  +  "' " +
                 "and substr(easting, 1," + accuracy + ") = substr('" +  eastingInput + "'"+", 1," + accuracy + ") " +
@@ -155,13 +194,17 @@ public Cursor getSamplesByCoordAndAccuracyAndType
            String eastingInput,
            String northingInput,
            String type,
-           String accuracy)
+           String accuracy,
+           String origin)
         {
+
+        String originQuery = origin.equals("L") ? " and ORIGIN = 'L' " : "";
         SQLiteDatabase db = getReadableDatabase();
         String query = "SELECT timestamp, value, condition " +
                 "FROM Samples " +
                 "where type = ? " +
-                "and  gridzone = ? " +
+                 originQuery +
+                "and gridzone = ? " +
                 "and square = ? "+
                 "and substr(easting, 1, ?) = substr(?, 1, ?) " +
                 "and  substr(northing, 1, ?) = substr(?, 1, ?) " +
@@ -189,7 +232,9 @@ public Cursor getSamplesByCoordAndAccuracyAndType
         * */
 
     //TODO pulisci questo codice che è illeggibile, usa il metodo corretto
-    public Cursor getAvgConditionByAccuracy(String sampleType, int accuracy, int dateLimit){
+    public Cursor getAvgConditionByAccuracy(String sampleType, int accuracy, int dateLimit, String origin){
+        String originQuery = origin.equals("L") ? " and ORIGIN = 'L' " : "";
+
         SQLiteDatabase db = this.getReadableDatabase();
         String query = "SELECT " + COLUMN_GRIDZONE + ", "
                 + COLUMN_SQUARE +"," +
@@ -197,12 +242,12 @@ public Cursor getSamplesByCoordAndAccuracyAndType
                 "substr(" + COLUMN_NORTHING + ", 1," +  accuracy + ") AS northing_cast," +
                 "AVG(" + COLUMN_CONDITION+ ") AS avg_cond " +
                 "FROM (" +
-                "    SELECT timestamp, type, value, condition, gridzone, square, easting, northing, " +
+                "    SELECT timestamp, type, value, condition, gridzone, square, easting, northing, origin," +
                 "           ROW_NUMBER() OVER (PARTITION BY substr(easting, 1," +  accuracy + "), substr(northing, 1," +  accuracy +
                 ") ORDER BY timestamp) AS rn " +
                 "    FROM samples" +
                 ") AS subquery " +
-                "WHERE rn <= " + dateLimit + " AND type = '" + sampleType+ "' " +
+                "WHERE rn <= " + dateLimit + " AND type = '" + sampleType+ "' " + originQuery +
                 "GROUP BY gridzone, square, easting_cast, northing_cast";
         return db.rawQuery(query, null);
     }
@@ -217,5 +262,19 @@ public Cursor getSamplesByCoordAndAccuracyAndType
         String whereClause = "timestamp = ? and type = ?";
         String [] whereArgs = {timestamp, type};
         return db.delete(TABLE_NAME, whereClause, whereArgs);
+    }
+
+    public Cursor getSamplesToSynch(){
+        String query = "SELECT * FROM SAMPLES WHERE STATE = 'LOCAL';";
+        SQLiteDatabase db = getReadableDatabase();
+        return db.rawQuery(query, null);
+    }
+
+    public void updateSampleState(String ID, String newState){
+        SQLiteDatabase db = getWritableDatabase();
+        String query = "update Samples set state = ? where ID = ?;";
+        String [] args = {newState, ID};
+
+        db.execSQL(query, args);
     }
 }

@@ -24,6 +24,8 @@
     <string name="settings_background_key">background</string>
     <string name="settings_samplers_key">sampler</string>
     <string name="settings_granularity_key">granularity</string>
+    <string name="last_synch">last_synch</string>
+
 
     <string name="notification_channel_id_background_service">pangolin_service</string>
     <string name="background_accuracy_key">background_accuracy</string>
@@ -34,6 +36,7 @@
     <string name="title_activity_tile_info">TileInfoActivity</string>
     <string name="chart_info">Important: higher values correspond to worse signals</string>
     <string name="chart_activity_title">Samples trend</string>
+
 
 
 

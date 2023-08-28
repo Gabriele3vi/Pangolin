@@ -50,6 +50,10 @@ public class MapManager {
         });
     }
 
+    public void moveCameraTo(LatLng coords){
+        map.moveCamera(CameraUpdateFactory.newLatLng(coords));
+    }
+
     public void drawGrid(GridType gridType){
         removeGrid();
         tileProvider = MGRSTileProvider.create(context, GridType.GZD, gridType);

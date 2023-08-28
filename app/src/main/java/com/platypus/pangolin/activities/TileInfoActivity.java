@@ -97,7 +97,7 @@ public class TileInfoActivity extends AppCompatActivity {
         String easting = MGRSTools.getMaxAccuracyEN(coords.getEasting());
         String northing = MGRSTools.getMaxAccuracyEN(coords.getNorthing());
 
-        Cursor samplesCursor = db.getSamplesByCoordAndAccuracyAndType(zone, square, easting, northing, sampleType, gridAccuracy);
+        Cursor samplesCursor = db.getSamplesByCoordAndAccuracyAndType(zone, square, easting, northing, sampleType, gridAccuracy, "W");
 
         while (samplesCursor.moveToNext()){
             //prendo la coordinata

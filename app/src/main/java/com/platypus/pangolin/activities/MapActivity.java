@@ -51,10 +51,12 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
+import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.platypus.pangolin.R;
 import com.platypus.pangolin.database.DatabaseHelper;
@@ -70,7 +72,14 @@ import com.platypus.pangolin.services.BackgroundSamplerService;
 import com.platypus.pangolin.utils.MGRSTools;
 import com.platypus.pangolin.utils.MapManager;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -85,9 +94,10 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
     private static final int REQUEST_ENABLE_GPS = 3;
     private static String SERVICE_CHANNEL_ID, BASIC_CHANNEL_ID;
     private FusedLocationProviderClient fusedLocationClient;
-    private FloatingActionButton btn_sample, btn_resetDB, btn_worldData;
+    private FloatingActionButton btn_sample, btn_resetDB, btn_synchData;
     private Button btn_noise, btn_signal, btn_wifi;
     private Button btn_10m, btn_100m, btn_1000m;
+    private Button btn_localSamples, btn_worldSamples;
     private SampleType currentSampleType;
     private Sampler noiseSampler, signalSampler, wifiSampler, currentSampler;
     private GridType mapGridType;
@@ -103,6 +113,7 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
     private CollectionReference collectionReference;
     private boolean micPermissions, locationPermissions, GPSEnabled;
     private List<LocalizedSample> localizedSampleList;
+    private String currentMap = "L";
 
     private void initializeSamplers() {
         WifiManager wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
@@ -145,7 +156,9 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         btn_10m = findViewById(R.id.btn_10m);
         btn_100m = findViewById(R.id.btn_100m);
         btn_1000m = findViewById(R.id.btn_1000m);
-        btn_worldData = findViewById(R.id.btn_getWorldData);
+        btn_synchData = findViewById(R.id.btn_synchData);
+        btn_localSamples = findViewById(R.id.btn_phone_map);
+        btn_worldSamples = findViewById(R.id.btn_world_map);
 
         db = new DatabaseHelper(this);
 
@@ -155,7 +168,6 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         btn_noise.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                askForPermissions(Manifest.permission.RECORD_AUDIO, REQUEST_MICROPHONE);
                 updateSampleType(SampleType.Noise);
             }
         });
@@ -166,11 +178,17 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         btn_sample.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                askForPermissions(Manifest.permission.ACCESS_FINE_LOCATION, REQUEST_LOCATION);
+                if (currentSampleType == SampleType.Noise) {
+                    askForPermissions(Manifest.permission.RECORD_AUDIO, REQUEST_MICROPHONE);
+                    if (!micPermissions) {
+                        return;
+                    }
+                }
                 if (GPSEnabled)
                     createSample();
             }
         });
+
         btn_resetDB.setOnClickListener(e -> {
             db.resetDB();
             localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
@@ -178,28 +196,11 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
             Toast.makeText(this, "Database formattato", Toast.LENGTH_SHORT).show();
         });
 
-        btn_worldData.setOnClickListener(new View.OnClickListener() {
+        btn_synchData.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                CollectionReference collection = firebaseDB.collection("samples");
-                collection.get().addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
-                    @Override
-                    public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
-                        for (DocumentSnapshot d : queryDocumentSnapshots.getDocuments()){
-                            String type = d.getString("type");
-                            double condition =  d.getDouble("condition");
-                            String gridzone = d.getString("gridzone");
-                            String square = d.getString("square");
-                            String easting = d.getString("easting");
-                            String northing = d.getString("northing");
-                            String coords = gridzone + square + easting + northing;
-
-                            System.out.print("Type: " + type);
-                            System.out.print(" Coords: " + coords);
-                            System.out.println(" Condition: " + condition);
-                        }
-                    }
-                });
+                downloadSampleFromFirebase();
+                uploadMySamples();
             }
         });
 
@@ -207,11 +208,20 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         btn_100m.setOnClickListener(e -> changeGridType(GridType.HUNDRED_METER));
         btn_1000m.setOnClickListener(e -> changeGridType(GridType.KILOMETER));
 
-        //if needed, ask for permissions
+        btn_localSamples.setOnClickListener(e -> {
+            currentMap = "L";
+            localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
+            drawHeatMap(localizedSampleList);
+        });
+        btn_worldSamples.setOnClickListener(e -> {
+            currentMap = "W";
+            localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
+            drawHeatMap(localizedSampleList);
+        });
 
+        //if needed, ask for permissions
         setActivityTitle("Map");
         askForPermissions(Manifest.permission.ACCESS_FINE_LOCATION, REQUEST_LOCATION);
-
 
         defaultSharedPreferences = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
         defaultSamplerKey = getString(R.string.settings_samplers_key);
@@ -227,9 +237,9 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         }
 
+
         //firebase Init
         firebaseDB = FirebaseFirestore.getInstance();
-
     }
 
     @Override
@@ -286,11 +296,15 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
             mapManager.setLocationEnabled();
             mapManager.moveCameraToUserPosition(fusedLocationClient);
             btn_sample.setEnabled(true);
+        } else {
+            LatLng coords = new LatLng(41.902782, 12.496366);
+            mapManager.moveCameraTo(coords);
         }
 
         //Imposta la mappa del noise al primo avvio
         setSampler(defaultSampler);
         setGranularity(defaultGranularity);
+        btn_localSamples.performClick();
     }
     private void setSampler(String s){
         switch (s){
@@ -381,7 +395,6 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
                 Toast.makeText(this, "Mic permissions given", Toast.LENGTH_SHORT).show();
             } else {
                 micPermissions = false;
-                btn_noise.setEnabled(false);
             }
         }
 
@@ -389,6 +402,9 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 locationPermissions = true;
                 enableGPS();
+                mapManager.setLocationEnabled();
+                fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+                mapManager.moveCameraToUserPosition(fusedLocationClient);
                 Toast.makeText(this, "Localization permissions given", Toast.LENGTH_SHORT).show();
             } else {
                 locationPermissions = false;
@@ -403,8 +419,6 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
                 Toast.makeText(this, "GPS enabled", Toast.LENGTH_SHORT).show();
             }
         }
-
-
     }
 
     private void enableGPS() {
@@ -418,14 +432,13 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
 
 
     private void loadHeatMap(){
-
         List<LocalizedSample> list = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
         drawHeatMap(list);
-
     }
+
     private List<LocalizedSample> getLocalSamples(String sampleType, int accuracy, int dateLimit){
         List<LocalizedSample> localizedSampleList = new ArrayList<>();
-        Cursor samplesCursor = db.getAvgConditionByAccuracy(sampleType, accuracy, dateLimit);
+        Cursor samplesCursor = db.getAvgConditionByAccuracy(sampleType, accuracy, dateLimit, currentMap);
 
         while (samplesCursor.moveToNext()){
             //prendo la coordinata
@@ -450,7 +463,7 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
 
     private void drawHeatMap(List<LocalizedSample> sampleList){
         if (currentSampleType == null) {
-            Toast.makeText(this, "Something went wrong while maps' loading", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Something went wrong while maps' drawing", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -526,6 +539,113 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
     private void stopService(){
         Intent serviceIntent = new Intent(this, BackgroundSamplerService.class);
         stopService(serviceIntent);
+    }
+
+    private Timestamp getTimestampFromString(String ts){
+        Date d = new Date();
+        String pattern = "yyyy-MM-dd HH:mm:ss";
+        SimpleDateFormat sdf = new SimpleDateFormat(pattern);
+        try {
+            d = sdf.parse(ts);
+            return new Timestamp(d);
+        } catch (ParseException e) {
+            System.out.println("Error while parsing data");
+        }
+        return  null;
+    }
+
+    private void uploadMySamples(){
+        CollectionReference collection = firebaseDB.collection("samples");
+        Cursor samplesToSynch = db.getSamplesToSynch();
+
+        while(samplesToSynch.moveToNext()){
+            String type = samplesToSynch.getString(0);
+            String timestampString = samplesToSynch.getString(1);
+
+            Timestamp ts = getTimestampFromString(timestampString);
+
+            double value = samplesToSynch.getDouble(2);
+            int condition = samplesToSynch.getInt(3);
+            String gridzone = samplesToSynch.getString(4);
+            String square = samplesToSynch.getString(5);
+            String easting = samplesToSynch.getString(6);
+            String northing = samplesToSynch.getString(7);
+            String id = samplesToSynch.getString(8);
+            System.out.println("Uploading sample: " + id);
+            Map<String, Object> sampleData = new HashMap<>();
+            sampleData.put("id", id);
+            sampleData.put("type", type);
+            sampleData.put("value", value);
+            sampleData.put("condition", condition);
+            sampleData.put("gridzone", gridzone);
+            sampleData.put("square", square);
+            sampleData.put("easting", easting);
+            sampleData.put("northing", northing);
+            sampleData.put("timestamp", ts);
+
+
+            collection.add(sampleData).addOnSuccessListener(documentReference -> {
+                        System.out.println("Added correctly " + id);
+                        db.updateSampleState(id, "SYNC");
+                    })
+                    .addOnFailureListener(e -> {
+                        // Handle errors
+                        System.out.println("Error while adding a sample ");
+                    });
+        }
+    }
+
+    private void downloadSampleFromFirebase(){
+        CollectionReference collection = firebaseDB.collection("samples");
+        long lastUpdate =
+                defaultSharedPreferences.getLong(getString(R.string.last_synch), 1282983341);
+
+        Timestamp timestamp = new Timestamp(new Date(lastUpdate));
+
+        Query query = collection.whereGreaterThan("timestamp", timestamp);
+        String pattern = "yyyy-MM-dd HH:mm:ss";
+        SimpleDateFormat sdf = new SimpleDateFormat(pattern);
+
+        query.get().addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+            @Override
+            public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                for (DocumentSnapshot d : queryDocumentSnapshots.getDocuments()){
+                    String type = d.getString("type");
+                    double conditionD = d.getDouble("condition");
+                    int cond = (int) conditionD;
+                    double value =  d.getDouble("value");
+                    String gridzone = d.getString("gridzone");
+                    String square = d.getString("square");
+                    String easting = d.getString("easting");
+                    String northing = d.getString("northing");
+                    String coords = gridzone + square + easting + northing;
+                    String id = d.getString("id");
+                    Date timestampRaw = d.getDate("timestamp");
+                    // Convert Date to formatted string
+                    String timestamp = sdf.format(timestampRaw);
+
+                    db.addSampleFromFirebase(
+                            type,
+                            timestamp,
+                            value,
+                            cond,
+                            gridzone,
+                            square,
+                            easting,
+                            northing,
+                            id,
+                            "W"
+                    );
+                }
+            }
+        });
+
+        //aggiorno il momento dell'ultimo synch
+        long currentMoment = System.currentTimeMillis();
+        SharedPreferences.Editor editor = defaultSharedPreferences.edit();
+        editor.putLong(getString(R.string.last_synch), currentMoment);
+        editor.apply();
+
     }
 
 }
