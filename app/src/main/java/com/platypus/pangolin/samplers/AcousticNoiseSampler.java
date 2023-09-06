@@ -117,14 +117,19 @@ public class AcousticNoiseSampler extends Sampler {
 
     private double getDecibelFromBuffer(short[] buffer, int byteRead){
         //get the maximum value of the buffer to clean the data
-        int max = 0;
+        int countedValues = 0;
+        float mean = 0;
         for (int i : buffer){
             int w = Math.abs(i);
-            if (w > max)
-                max = w;
+            if (w != 0){
+                mean += w;
+                countedValues ++;
+            }
         }
         //return the max value in DB
-        return 20 * Math.log10(max / 32767.0);
+        mean = mean / countedValues;
+        System.out.println(mean);
+        return 20 * Math.log10(mean / 32767.0);
     }
 
     private void stopReading(){
@@ -165,9 +170,9 @@ public class AcousticNoiseSampler extends Sampler {
 
             double db = mean / decibelsReadList.size();
 
-            if (db >= -10)
+            if (db >= -20)
                 return new Sample(SampleType.Noise, SignalCondition.POOR, db);
-            else if (db >= -30)
+            else if (db >= -40)
                 return new Sample(SampleType.Noise, SignalCondition.GOOD, db);
             else
                 return new Sample(SampleType.Noise, SignalCondition.EXCELLENT, db);

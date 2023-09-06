@@ -15,7 +15,7 @@ import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.TileOverlay;
 import com.google.android.gms.maps.model.TileOverlayOptions;
-import com.platypus.pangolin.activities.TileInfoActivity;
+import com.platypus.pangolin.activities.ChartActivity;
 import com.platypus.pangolin.models.SampleType;
 
 import java.util.ArrayList;
@@ -31,6 +31,7 @@ public class MapManager {
     private List<TileOverlay> tilesSchemas;
     private MGRSTileProvider tileProvider;
     private Context context;
+    private String sampleOriginInMap;
     private int zoom;
 
     public MapManager(GoogleMap map, Context context) {
@@ -38,16 +39,24 @@ public class MapManager {
         this.polygonList = new ArrayList<>();
         this.tilesSchemas = new ArrayList<>();
         this.context = context;
+        this.sampleOriginInMap = "L";
+
+
 
         map.setOnPolygonClickListener(polygon -> {
             // Perform the desired action when the polygon is clicked
             // For example, show an info window or change the polygon color
             String data = (String) polygon.getTag();
-            Intent i = new Intent(context, TileInfoActivity.class);
+            Intent i = new Intent(context, ChartActivity.class);
             i.putExtra("Data", data);
+            i.putExtra("Origin", sampleOriginInMap);
             context.startActivity(i);
             System.out.println(data);
         });
+    }
+
+    public void setSampleOriginInMap(String sampleOriginInMap) {
+        this.sampleOriginInMap = sampleOriginInMap;
     }
 
     public void moveCameraTo(LatLng coords){

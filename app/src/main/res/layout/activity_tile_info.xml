@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="20dp"
-    tools:context=".activities.TileInfoActivity">
+    tools:context=".activities.ChartActivity">
     <TextView
         android:id="@+id/tv_test_2"
         android:layout_width="match_parent"
@@ -20,7 +20,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="17sp"
-        android:text="@string/chart_info"
         />
 
     <com.github.mikephil.charting.charts.LineChart

@@ -8,13 +8,22 @@
             app:key="@string/settings_samplers_key"
             app:title="Default Sampler"
             app:useSimpleSummaryProvider="true"/>
-
         <ListPreference
             app:defaultValue="100 meters"
             app:entries="@array/map_granularities_entries"
             app:entryValues="@array/map_granularities_values"
             app:key="@string/settings_granularity_key"
             app:title="Default granularity"
+            app:useSimpleSummaryProvider="true"/>
+        <EditTextPreference
+            app:defaultValue="90"
+            app:key="samples_past_to_average"
+            app:title="Samples to average per tile"
+            app:useSimpleSummaryProvider="true"/>
+        <EditTextPreference
+            app:defaultValue="500"
+            app:key="noise_sampling_time"
+            app:title="Noise sampling time (in milliseconds)"
             app:useSimpleSummaryProvider="true"/>
     </PreferenceCategory>
 

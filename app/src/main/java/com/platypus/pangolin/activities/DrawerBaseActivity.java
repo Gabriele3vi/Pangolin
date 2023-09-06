@@ -8,6 +8,7 @@ import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 
 import android.content.Intent;
+import android.database.Cursor;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
@@ -17,6 +18,7 @@ import androidx.appcompat.widget.Toolbar;
 
 import com.google.android.material.navigation.NavigationView;
 import com.platypus.pangolin.R;
+import com.platypus.pangolin.database.DatabaseHelper;
 
 public class DrawerBaseActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
@@ -69,10 +71,19 @@ public class DrawerBaseActivity extends AppCompatActivity implements NavigationV
                 startActivity(new Intent(this, SettingsActivity.class));
                 overridePendingTransition(0,0);
                 break;
+            case R.id.nav_export_data:
+                drawerLayout.closeDrawer(GravityCompat.START);
+
+                if (this instanceof ExportDataActivity) break;
+
+                startActivity(new Intent(this, ExportDataActivity.class));
+                overridePendingTransition(0,0);
+                break;
         }
 
         return true;
     }
+
 
     protected void setActivityTitle(String title){
         if (getSupportActionBar() != null)

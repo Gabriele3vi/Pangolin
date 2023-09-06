@@ -13,17 +13,10 @@ import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
-import com.google.android.material.snackbar.Snackbar;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.view.View;
 import android.widget.TextView;
-
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
-import androidx.navigation.ui.AppBarConfiguration;
-import androidx.navigation.ui.NavigationUI;
 
 import com.platypus.pangolin.R;
 import com.platypus.pangolin.database.DatabaseHelper;
@@ -34,7 +27,7 @@ import java.util.List;
 
 import mil.nga.mgrs.MGRS;
 
-public class TileInfoActivity extends AppCompatActivity {
+public class ChartActivity extends AppCompatActivity {
 
     private TextView tv;
     private DatabaseHelper db;
@@ -46,18 +39,29 @@ public class TileInfoActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_tile_info);
-        tv = findViewById(R.id.tv_test_2);
+        tv = findViewById(R.id.tv_test_3);
         db = new DatabaseHelper(this);
         lineChart = findViewById(R.id.lineChart);
 
         //Prendo le informazioni che servono per creare il grafico
         Intent intentData = getIntent();
         String [] data = intentData.getStringExtra("Data").split("_");
+        String sampleOriginToShow = intentData.getStringExtra("Origin");
         MGRS coords = MGRSTools.fromStringToMGRS(data[0]);
         String sampleType = data[1];
         String gridAccuracy = data[2];
 
-        loadChartData(coords, gridAccuracy, sampleType);
+        loadChartData(coords, gridAccuracy, sampleType, sampleOriginToShow);
+
+        String chartInfo = "";
+
+        if (sampleType.equals("Signal") || sampleType.equals("Wifi"))
+            chartInfo = "Lower values correspond to better signals";
+        else
+            chartInfo = "Lower values correspond to more noise";
+
+
+        tv.setText(chartInfo);
 
         //imposto il grafico
         Description desc = new Description();
@@ -66,8 +70,8 @@ public class TileInfoActivity extends AppCompatActivity {
         lineChart.getAxisRight().setDrawLabels(false);
         XAxis xAxis = lineChart.getXAxis();
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xAxis.setLabelCount(5, true);
         xAxis.setValueFormatter(new IndexAxisValueFormatter(xValues));
-        xAxis.setLabelCount(Math.min(xValues.size(), 10));
         xAxis.setGranularity(1f);
 
         YAxis yAxis = lineChart.getAxisLeft();
@@ -89,7 +93,7 @@ public class TileInfoActivity extends AppCompatActivity {
 
     }
 
-    private void loadChartData(MGRS coords, String gridAccuracy, String sampleType){
+    private void loadChartData(MGRS coords, String gridAccuracy, String sampleType, String samplesOrigin){
         xValues = new ArrayList<>();
         yValues = new ArrayList<>();
         String zone = coords.getZone() + "" + coords.getBand();
@@ -97,7 +101,7 @@ public class TileInfoActivity extends AppCompatActivity {
         String easting = MGRSTools.getMaxAccuracyEN(coords.getEasting());
         String northing = MGRSTools.getMaxAccuracyEN(coords.getNorthing());
 
-        Cursor samplesCursor = db.getSamplesByCoordAndAccuracyAndType(zone, square, easting, northing, sampleType, gridAccuracy, "W");
+        Cursor samplesCursor = db.getSamplesByCoordAndAccuracyAndType(zone, square, easting, northing, sampleType, gridAccuracy, samplesOrigin);
 
         while (samplesCursor.moveToNext()){
             //prendo la coordinata
@@ -109,6 +113,21 @@ public class TileInfoActivity extends AppCompatActivity {
             yValues.add(Math.abs(value));
             System.out.println(timestamp + " value: " + value + " condition: " + condition);
         }
+
+        /*
+        if (xValues.size() > 4){
+            List<String> newXValues = new ArrayList<>();
+            int lastIndex = xValues.size() - 1;
+            int index25 = (int) (xValues.size() * 0.25);
+            int index75 = (int) (xValues.size() * 0.75);
+
+            newXValues.add(xValues.get(0));
+            newXValues.add(xValues.get(index25));
+            newXValues.add(xValues.get(index75));
+            newXValues.add(xValues.get(lastIndex));
+
+            xValues = newXValues;
+        } */
 
         db.close();
     }

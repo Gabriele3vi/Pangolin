@@ -112,14 +112,15 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
     private FirebaseFirestore firebaseDB;
     private CollectionReference collectionReference;
     private boolean micPermissions, locationPermissions, GPSEnabled;
-    private List<LocalizedSample> localizedSampleList;
+
     private String currentMap = "L";
+    private int pastToAverage, noiseSamplingTime;
 
     private void initializeSamplers() {
         WifiManager wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
         TelephonyManager telephonyManager = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
 
-        this.noiseSampler = new AcousticNoiseSampler(500);
+        this.noiseSampler = new AcousticNoiseSampler(noiseSamplingTime);
         this.signalSampler = new SignalStrengthSampler(telephonyManager);
         this.wifiSampler = new WifiSampler(wifiManager);
 
@@ -133,7 +134,6 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         micPermissions = false;
         locationPermissions = false;
         GPSEnabled = false;
-        initializeSamplers();
 
         ActivityMapsBinding activityMapsBinding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(activityMapsBinding.getRoot());
@@ -165,13 +165,7 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         mapGridType = GridType.HUNDRED_METER;
 
         //di base disabilito il bottone, lo abilito solo se il GPS è attivo e posso campionare
-        btn_noise.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                updateSampleType(SampleType.Noise);
-            }
-        });
-
+        btn_noise.setOnClickListener(e -> updateSampleType(SampleType.Noise));
         btn_signal.setOnClickListener(e -> updateSampleType(SampleType.Signal));
         btn_wifi.setOnClickListener(e -> updateSampleType(SampleType.Wifi));
         btn_sample.setOnClickListener(e -> createSample());
@@ -190,9 +184,8 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         });
 
         btn_resetDB.setOnClickListener(e -> {
-            db.resetDB();
-            localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
-            drawHeatMap(localizedSampleList);
+            db.resetDB(currentSampler.toString());
+            loadHeatMap();
             Toast.makeText(this, "Database formattato", Toast.LENGTH_SHORT).show();
         });
 
@@ -210,13 +203,13 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
 
         btn_localSamples.setOnClickListener(e -> {
             currentMap = "L";
-            localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
-            drawHeatMap(localizedSampleList);
+            mapManager.setSampleOriginInMap(currentMap);
+            loadHeatMap();
         });
         btn_worldSamples.setOnClickListener(e -> {
             currentMap = "W";
-            localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
-            drawHeatMap(localizedSampleList);
+            mapManager.setSampleOriginInMap(currentMap);
+            loadHeatMap();
         });
 
         //if needed, ask for permissions
@@ -228,15 +221,19 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         defaultGranularityKey = getString(R.string.settings_granularity_key);
         String defaultBackgroundSamplingKey = getString(R.string.settings_background_key);
 
-        defaultSampler =  defaultSharedPreferences.getString(defaultSamplerKey, "null");
-        defaultGranularity =  defaultSharedPreferences.getString(defaultGranularityKey, "null");
+        defaultSampler = defaultSharedPreferences.getString(defaultSamplerKey, "null");
+        defaultGranularity = defaultSharedPreferences.getString(defaultGranularityKey, "null");
         backgroundSamplingOn = defaultSharedPreferences.getBoolean(defaultBackgroundSamplingKey, false);
+        pastToAverage = Integer.parseInt(defaultSharedPreferences.getString("samples_past_to_average", "90"));
+        noiseSamplingTime = Integer.parseInt(defaultSharedPreferences.getString("noise_sampling_time", "500"));
+
 
         if (locationPermissions) {
             enableGPS();
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         }
 
+        initializeSamplers();
 
         //firebase Init
         firebaseDB = FirebaseFirestore.getInstance();
@@ -246,8 +243,7 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
     protected void onRestart() {
         super.onRestart();
         stopService();
-        localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
-        drawHeatMap(localizedSampleList);
+        loadHeatMap();
     }
 
     @Override
@@ -356,15 +352,13 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
         else
             currentSampler = wifiSampler;
 
-        localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
-        drawHeatMap(localizedSampleList);
+        loadHeatMap();
     }
 
     private void changeGridType(GridType newGridType){
         this.mapGridType = newGridType;
         mapManager.drawGrid(newGridType);
-        localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
-        drawHeatMap(localizedSampleList);
+        loadHeatMap();
     }
 
 
@@ -432,7 +426,7 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
 
 
     private void loadHeatMap(){
-        List<LocalizedSample> list = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
+        List<LocalizedSample> list = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), pastToAverage);
         drawHeatMap(list);
     }
 
@@ -525,8 +519,7 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
                                 easting,
                                 northing
                         );
-                        localizedSampleList = getLocalSamples(currentSampleType.toString(), mapGridType.getAccuracy(), 100);
-                        drawHeatMap(localizedSampleList);
+                        loadHeatMap();
                     }
                 });
     }
@@ -555,8 +548,12 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
     }
 
     private void uploadMySamples(){
-        CollectionReference collection = firebaseDB.collection("samples");
+        CollectionReference collection = firebaseDB.collection("samples2");
+
         Cursor samplesToSynch = db.getSamplesToSynch();
+
+        Date d = new Date(System.currentTimeMillis());
+        Timestamp uploadTimestamp = new Timestamp(d);
 
         while(samplesToSynch.moveToNext()){
             String type = samplesToSynch.getString(0);
@@ -582,7 +579,7 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
             sampleData.put("easting", easting);
             sampleData.put("northing", northing);
             sampleData.put("timestamp", ts);
-
+            sampleData.put("upload_timestamp", uploadTimestamp);
 
             collection.add(sampleData).addOnSuccessListener(documentReference -> {
                         System.out.println("Added correctly " + id);
@@ -596,17 +593,17 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
     }
 
     private void downloadSampleFromFirebase(){
-        CollectionReference collection = firebaseDB.collection("samples");
+        CollectionReference collection = firebaseDB.collection("samples2");
         long lastUpdate =
                 defaultSharedPreferences.getLong(getString(R.string.last_synch), 1282983341);
 
         Timestamp timestamp = new Timestamp(new Date(lastUpdate));
 
-        Query query = collection.whereGreaterThan("timestamp", timestamp);
+        Query query = collection.whereGreaterThan("upload_timestamp", timestamp);
         String pattern = "yyyy-MM-dd HH:mm:ss";
         SimpleDateFormat sdf = new SimpleDateFormat(pattern);
 
-        query.get().addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+        collection.get().addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
             @Override
             public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
                 for (DocumentSnapshot d : queryDocumentSnapshots.getDocuments()){
@@ -639,7 +636,6 @@ public class MapActivity extends DrawerBaseActivity implements OnMapReadyCallbac
                 }
             }
         });
-
         //aggiorno il momento dell'ultimo synch
         long currentMoment = System.currentTimeMillis();
         SharedPreferences.Editor editor = defaultSharedPreferences.edit();

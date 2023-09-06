@@ -25,21 +25,30 @@
     </string-array>
 
     <string-array name="background_sampling_accuracy_entries">
-        <item>10 meters</item>
         <item>100 meters</item>
         <item>1 kilometers</item>
     </string-array>
 
     <string-array name="background_sampling_accuracy_values">
-        <item>4</item>
         <item>3</item>
         <item>2</item>
     </string-array>
-
 
     <string-array name="sample_types">
         <item>Noise</item>
         <item>Signal</item>
         <item>Wifi</item>
+    </string-array>
+
+    <string-array name="sample_types_all">
+        <item>All</item>
+        <item>Noise</item>
+        <item>Signal</item>
+        <item>Wifi</item>
+    </string-array>
+
+    <string-array name="sample_from">
+        <item>Local</item>
+        <item>All</item>
     </string-array>
 </resources>

@@ -7,6 +7,9 @@
         <item android:id="@+id/nav_manageSamples"
             android:title="Manage samples"
             android:icon="@drawable/data"/>
+        <item android:id="@+id/nav_export_data"
+            android:title="Export data"
+            android:icon="@drawable/download"/>
         <item android:id="@+id/nav_settings"
             android:title="Settings"
             android:icon="@drawable/settings"/>

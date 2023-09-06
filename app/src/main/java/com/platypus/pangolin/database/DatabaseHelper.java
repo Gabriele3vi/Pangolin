@@ -244,7 +244,7 @@ public Cursor getSamplesByCoordAndAccuracyAndType
                 "FROM (" +
                 "    SELECT timestamp, type, value, condition, gridzone, square, easting, northing, origin," +
                 "           ROW_NUMBER() OVER (PARTITION BY substr(easting, 1," +  accuracy + "), substr(northing, 1," +  accuracy +
-                ") ORDER BY timestamp) AS rn " +
+                ") ORDER BY timestamp desc) AS rn " +
                 "    FROM samples" +
                 ") AS subquery " +
                 "WHERE rn <= " + dateLimit + " AND type = '" + sampleType+ "' " + originQuery +
@@ -252,9 +252,11 @@ public Cursor getSamplesByCoordAndAccuracyAndType
         return db.rawQuery(query, null);
     }
 
-    public void resetDB(){
+    public void resetDB(String type){
         SQLiteDatabase db = this.getWritableDatabase();
-        db.delete(TABLE_NAME, null, null);
+        String query = "DELETE FROM SAMPLES WHERE type = ?;";
+        String [] args = {type};
+        db.execSQL(query, args);
     }
 
     public int deleteSample (String timestamp, String type){
@@ -276,5 +278,17 @@ public Cursor getSamplesByCoordAndAccuracyAndType
         String [] args = {newState, ID};
 
         db.execSQL(query, args);
+    }
+
+    public Cursor getData(String origin, String sampleType){
+        SQLiteDatabase db = getReadableDatabase();
+        String originQuery = origin.equals("All") ? " OR origin = 'W') " : ") ";
+        String query = "SELECT * FROM samples WHERE (origin = 'L' " + originQuery;
+
+        if (!sampleType.equals("All"))
+            query = "SELECT * FROM samples WHERE type = '" + sampleType+ "' " + " AND  (origin = 'L' " + originQuery;
+
+
+        return db.rawQuery(query, null);
     }
 }
